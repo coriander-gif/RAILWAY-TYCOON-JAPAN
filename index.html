@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>RAILWAY TYCOON JAPAN v0.1</title>
+    <title>RAILWAY TYCOON JAPAN v0.1.1</title>
     <style>
         /* ==========================================================================
            CSS Reset & Variables (Theme Support)
@@ -203,7 +203,7 @@
             <button class="btn btn-outline" onclick="UI.showSettingsModal()">SETTINGS</button>
         </div>
         <div style="position: absolute; bottom: 20px; color: var(--col-text-muted); font-size: 0.8rem; text-align: center; line-height: 1.4;">
-            Version v0.1<br>基本システムの構築
+            Version v0.1.1<br>セーブ機能安定化と自動保存
         </div>
     </div>
 
@@ -387,7 +387,7 @@
 
     <script>
         /**
-         * RAILWAY TYCOON JAPAN v0.1
+         * RAILWAY TYCOON JAPAN v0.1.1
          * 基本システムの構築 (UI, Title, Setup, Save/Load, Day Advance)
          */
 
@@ -395,7 +395,7 @@
         // Game Static Data
         // ==========================================
         const GameData = {
-            VERSION: "0.1",
+            VERSION: "0.1.1",
             SAVE_KEY: "rtj_save_v01",
             START_DATE: "2025-04-01",
             
@@ -537,18 +537,62 @@
             },
             
             checkSavedData() {
+                const btnContinue = document.getElementById('btn-continue');
                 try {
                     const saved = localStorage.getItem(GameData.SAVE_KEY);
                     if (saved) {
                         const data = JSON.parse(saved);
-                        if (data && data.version && data.company) {
-                            document.getElementById('btn-continue').disabled = false;
-                            document.getElementById('btn-continue').textContent = `LOAD GAME (${data.company.name})`;
+                        let checkData = data;
+                        if (checkData.version === "0.1") checkData = this.migrateData(checkData);
+                        
+                        if (this.validateSaveData(checkData)) {
+                            btnContinue.disabled = false;
+                            btnContinue.textContent = `LOAD GAME (${checkData.company.name})`;
+                            return;
                         }
                     }
                 } catch(e) {
                     console.error("Save data check failed", e);
                 }
+                btnContinue.disabled = true;
+                btnContinue.textContent = "LOAD GAME";
+            },
+
+            validateSaveData(data) {
+                if (!data || typeof data !== 'object') return false;
+                
+                // 基本情報の存在確認
+                if (!data.version || !data.metadata || !data.company || !data.settings || !data.data || !data.stats) return false;
+                
+                // company の検証
+                if (typeof data.company.name !== 'string' || data.company.name.trim() === '') return false;
+                if (typeof data.company.funds !== 'number' || isNaN(data.company.funds)) return false;
+                if (typeof data.company.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data.company.date)) return false;
+                if (!('logo' in data.company) || !('color' in data.company) || !('hq' in data.company)) return false;
+
+                // settings の検証
+                if (!('region' in data.settings) || !('difficulty' in data.settings) || !('hasCompetitor' in data.settings)) return false;
+                const validRegions = GameData.REGIONS.map(r => r.id);
+                if (!validRegions.includes(data.settings.region)) return false;
+                const validDiffs = Object.keys(GameData.DIFFICULTIES);
+                if (!validDiffs.includes(data.settings.difficulty)) return false;
+
+                // data (配列) の検証
+                if (!Array.isArray(data.data.stations) || !Array.isArray(data.data.tracks) || !Array.isArray(data.data.routes) || !Array.isArray(data.data.trains) || !Array.isArray(data.data.competitors)) return false;
+
+                // stats (数値) の検証
+                if (typeof data.stats.stations !== 'number' || typeof data.stats.tracks !== 'number' || typeof data.stats.routes !== 'number' || typeof data.stats.trains !== 'number') return false;
+
+                return true;
+            },
+
+            migrateData(data) {
+                // v0.1 から v0.1.1 への移行処理
+                if (data.version === "0.1") {
+                    data.version = "0.1.1";
+                    // データ構造に変更がないため、バージョンの更新のみ行います。
+                }
+                return data;
             },
 
             buildRegionSelector() {
@@ -593,7 +637,6 @@
                     hqSelect.innerHTML += `<option value="${opt}">${opt}駅</option>`;
                 });
 
-                document.getElementById('form-setup' /* Assuming we have one? Wait, no form ID on company setup */)
                 UI.switchScreen('screen-new-company');
             },
 
@@ -696,10 +739,20 @@
                 try {
                     const rawText = localStorage.getItem(GameData.SAVE_KEY);
                     if (!rawText) return;
-                    const data = JSON.parse(rawText);
+                    let data = JSON.parse(rawText);
                     
                     if (data.version !== GameData.VERSION) {
-                        UI.showToast("異なるバージョンのセーブデータです。今後のアップデートで互換機能が提供される可能性があります。", "warning");
+                        if (data.version === "0.1") {
+                            data = this.migrateData(data);
+                        } else {
+                            UI.showModal("ロードエラー", "対応していないバージョンのセーブデータです。");
+                            return;
+                        }
+                    }
+                    
+                    if (!this.validateSaveData(data)) {
+                        UI.showModal("ロードエラー", "セーブデータが破損しているか、必須項目が不足しています。");
+                        return;
                     }
                     
                     Player = data;
@@ -710,20 +763,24 @@
                     UI.showToast("データを読み込みました", "success");
                 } catch(e) {
                     console.error(e);
-                    UI.showModal("ロードエラー", "セーブデータが破損しているか、読み込むことができません。");
+                    UI.showModal("ロードエラー", "セーブデータの解析に失敗しました。データが破損している可能性があります。");
                 }
             },
 
+            isSaving: false,
             saveGame(manual = false) {
-                if (!Player) return false;
+                if (!Player || this.isSaving) return false;
+                this.isSaving = true;
                 try {
                     localStorage.setItem(GameData.SAVE_KEY, JSON.stringify(Player));
                     if(manual) UI.showToast("ゲームをセーブしました", "success");
                     return true;
                 } catch(e) {
                     console.error("Save failed", e);
-                    UI.showModal("保存エラー", "データの保存に失敗しました。ロゴ画像が大きすぎる場合などに発生することがあります。");
+                    UI.showModal("保存エラー", "データの保存に失敗しました。ブラウザの容量制限（ロゴ画像のサイズ等）をご確認ください。");
                     return false;
+                } finally {
+                    this.isSaving = false;
                 }
             },
 
@@ -782,28 +839,36 @@
                 const btn = document.getElementById('btn-next-day');
                 btn.disabled = true;
 
-                // 1日進める処理
-                const [y, m, d] = Player.company.date.split('-').map(Number);
-                let dateObj = new Date(y, m - 1, d);
-                dateObj.setDate(dateObj.getDate() + 1);
-                
-                const nextY = dateObj.getFullYear();
-                const nextM = String(dateObj.getMonth() + 1).padStart(2, '0');
-                const nextD = String(dateObj.getDate()).padStart(2, '0');
-                
-                Player.company.date = `${nextY}-${nextM}-${nextD}`;
+                try {
+                    // 1日進める処理
+                    const [y, m, d] = Player.company.date.split('-').map(Number);
+                    let dateObj = new Date(y, m - 1, d);
+                    dateObj.setDate(dateObj.getDate() + 1);
+                    
+                    const nextY = dateObj.getFullYear();
+                    const nextM = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    const nextD = String(dateObj.getDate()).padStart(2, '0');
+                    
+                    Player.company.date = `${nextY}-${nextM}-${nextD}`;
 
-                // 将来ここに乗客計算や財務処理、AI行動処理を追加します
-                this.dailyCalculations();
+                    // 将来ここに乗客計算や財務処理、AI行動処理を追加します
+                    this.dailyCalculations();
 
-                // UI更新
-                UI.updateHeader();
-                
-                // ボタン復帰
-                setTimeout(() => {
-                    this.isAdvancing = false;
-                    btn.disabled = false;
-                }, 150); // 連続クリック防止の短いディレイ
+                    // UI更新
+                    UI.updateHeader();
+                    
+                    // 自動保存
+                    Game.saveGame(false);
+                } catch (e) {
+                    console.error("Advance Day Error", e);
+                    UI.showModal("処理エラー", "日次処理中に予期せぬエラーが発生しました。");
+                } finally {
+                    // ボタン復帰
+                    setTimeout(() => {
+                        this.isAdvancing = false;
+                        btn.disabled = false;
+                    }, 150); // 連続クリック防止の短いディレイ
+                }
             },
 
             dailyCalculations() {
