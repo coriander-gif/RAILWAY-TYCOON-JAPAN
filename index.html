@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>RAILWAY TYCOON JAPAN v0.1</title>
+    <style>
+        /* ==========================================================================
+           CSS Reset & Variables (Theme Support)
+           ========================================================================== */
+        :root {
+            /* Light Theme (Default) */
+            --col-bg-dark: #f1f5f9; 
+            --col-bg-panel: #ffffff;
+            --col-bg-hover: #e2e8f0;
+            --col-text-main: #0f172a;
+            --col-text-muted: #64748b;
+            --col-primary: #059669; /* 鉄道らしいグリーンに変更 */
+            --col-primary-hover: #047857;
+            --col-danger: #ef4444;
+            --col-success: #10b981;
+            --col-warning: #f59e0b;
+            --col-map-ocean: #e0f2fe;
+            --col-map-land: #d1d5db;
+            --col-map-border: #9ca3af;
+            --shadow-color: rgba(0,0,0,0.1);
+            --shadow-strong: rgba(0,0,0,0.15);
+            --panel-border: #e2e8f0;
+            
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        [data-theme="dark"] {
+            /* Dark Theme */
+            --col-bg-dark: #0f172a; 
+            --col-bg-panel: #1e293b;
+            --col-bg-hover: #334155;
+            --col-text-main: #f8fafc;
+            --col-text-muted: #94a3b8;
+            --col-primary: #10b981;
+            --col-primary-hover: #059669;
+            --col-danger: #ef4444;
+            --col-success: #10b981;
+            --col-warning: #f59e0b;
+            --col-map-ocean: #09111c;
+            --col-map-land: #1e293b;
+            --col-map-border: #334155;
+            --shadow-color: rgba(0,0,0,0.5);
+            --shadow-strong: rgba(0,0,0,0.7);
+            --panel-border: #334155;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body { font-family: var(--font-family); background-color: var(--col-bg-dark); color: var(--col-text-main); overflow: hidden; width: 100vw; height: 100vh; height: 100dvh; display: flex; flex-direction: column; transition: background-color 0.3s, color 0.3s; }
+        input, select, textarea { user-select: auto; }
+
+        /* Utilities */
+        .hidden { display: none !important; }
+        .flex { display: flex; }
+        .flex-col { display: flex; flex-direction: column; }
+        .items-center { align-items: center; }
+        .justify-center { justify-content: center; }
+        .justify-between { justify-content: space-between; }
+        .w-full { width: 100%; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .text-success { color: var(--col-success); }
+        .text-danger { color: var(--col-danger); }
+        .text-warning { color: var(--col-warning); }
+        .text-muted { color: var(--col-text-muted); }
+        .font-bold { font-weight: bold; }
+        
+        .btn { background-color: var(--col-primary); color: white; border: none; padding: 10px 20px; font-size: 0.9rem; font-weight: bold; border-radius: 6px; cursor: pointer; transition: background-color 0.2s, transform 0.1s; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+        .btn:hover:not(:disabled) { background-color: var(--col-primary-hover); }
+        .btn:active:not(:disabled) { transform: scale(0.98); }
+        .btn:disabled { background-color: var(--col-bg-hover); color: var(--col-text-muted); cursor: not-allowed; }
+        .btn-outline { background-color: transparent; border: 2px solid var(--col-primary); color: var(--col-primary); }
+        .btn-outline:hover:not(:disabled) { background-color: rgba(16, 185, 129, 0.1); }
+        .btn-danger { background-color: var(--col-danger); color: white; }
+        .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+
+        .input-group { margin-bottom: 1rem; display: flex; flex-direction: column; }
+        .input-group label { margin-bottom: 0.4rem; font-size: 0.85rem; color: var(--col-text-muted); font-weight: bold; }
+        .input-field { background-color: var(--col-bg-dark); color: var(--col-text-main); border: 1px solid var(--panel-border); padding: 10px; border-radius: 6px; font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
+        .input-field:focus { border-color: var(--col-primary); }
+
+        /* Screens Layouts */
+        .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; background-color: var(--col-bg-dark); z-index: 10; }
+        .theme-toggle { position: absolute; top: 20px; right: 20px; z-index: 50; background-color: var(--col-bg-panel); color: var(--col-text-main); border: 1px solid var(--panel-border); border-radius: 20px; padding: 8px 16px; font-size: 0.85rem; font-weight: bold; cursor: pointer; box-shadow: 0 2px 5px var(--shadow-color); display: flex; align-items: center; gap: 8px; transition: 0.2s; }
+        .theme-toggle:hover { background-color: var(--col-bg-hover); }
+
+        /* Toast Notifications */
+        #toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+        .toast { background-color: var(--col-bg-panel); color: var(--col-text-main); padding: 12px 24px; border-radius: 8px; box-shadow: 0 4px 12px var(--shadow-strong); border-left: 4px solid var(--col-primary); font-size: 0.9rem; font-weight: bold; opacity: 0; transform: translateY(-20px); transition: opacity 0.3s, transform 0.3s; }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.error { border-left-color: var(--col-danger); }
+        .toast.success { border-left-color: var(--col-success); }
+        .toast.warning { border-left-color: var(--col-warning); }
+
+        /* Title Screen */
+        #screen-title { align-items: center; justify-content: center; background: radial-gradient(circle at center, var(--col-bg-panel) 0%, var(--col-bg-dark) 100%); }
+        .title-logo { font-size: 2.5rem; font-weight: 900; margin-bottom: 3rem; text-shadow: 0 4px 10px var(--shadow-color); letter-spacing: 2px; text-align: center;}
+        .title-logo span { color: var(--col-primary); }
+        .title-menu { display: flex; flex-direction: column; gap: 1rem; width: 250px; }
+
+        /* Form Screen */
+        .form-container { background-color: var(--col-bg-panel); padding: 2rem; border-radius: 12px; width: 100%; max-width: 600px; margin: auto; box-shadow: 0 10px 25px var(--shadow-strong); border: 1px solid var(--panel-border); }
+        .form-title { font-size: 1.5rem; margin-bottom: 1.5rem; border-bottom: 2px solid var(--panel-border); padding-bottom: 0.5rem;}
+        
+        .region-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-bottom: 1rem; }
+        .region-card { padding: 10px; border: 2px solid var(--panel-border); border-radius: 8px; text-align: center; cursor: pointer; transition: 0.2s; font-weight: bold; color: var(--col-text-main); background: var(--col-bg-dark); }
+        .region-card:hover { border-color: var(--col-primary); background: rgba(16, 185, 129, 0.05); }
+        .region-card.selected { border-color: var(--col-primary); background: var(--col-primary); color: white; }
+        .region-desc { font-size: 0.85rem; color: var(--col-text-muted); min-height: 40px; margin-bottom: 1rem; padding: 10px; background: var(--col-bg-dark); border-radius: 6px; }
+
+        /* Main Headquarters Layout */
+        #screen-hq { display: flex; flex-direction: column; }
+        .hq-header { background-color: var(--col-bg-panel); padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--panel-border); height: 65px; flex-shrink: 0; z-index: 25; }
+        .header-company { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 1.2rem; min-width: max-content; }
+        #hq-company-logo { display: none; max-width: 108px; max-height: 34px; width: auto; height: auto; object-fit: contain; flex: 0 1 auto; }
+        .brand-color-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--col-bg-panel); box-shadow: 0 0 2px var(--shadow-color);}
+        
+        .header-stats { display: flex; gap: 15px; font-size: 0.9rem; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+        .stat-item { display: flex; flex-direction: column; align-items: flex-end;}
+        .stat-label { font-size: 0.65rem; color: var(--col-text-muted); }
+        .stat-value { font-weight: bold; font-family: monospace; font-size: 1.05rem;}
+
+        .hq-body { display: flex; flex: 1; overflow: hidden; position: relative; }
+        .hq-sidebar { width: 220px; background-color: var(--col-bg-panel); border-right: 1px solid var(--panel-border); display: flex; flex-direction: column; flex-shrink: 0; z-index: 20; }
+        .nav-item { padding: 15px 20px; color: var(--col-text-main); cursor: pointer; border-bottom: 1px solid var(--panel-border); transition: background-color 0.2s; display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem; font-weight: 500; }
+        .nav-item:hover { background-color: var(--col-bg-hover); }
+        .nav-item.active { background-color: var(--col-primary); color: white; font-weight: bold; border-left: 4px solid var(--col-primary-hover); }
+        
+        .hq-main-view { flex: 1; position: relative; overflow: auto; background-color: var(--col-bg-dark); }
+        
+        /* Map View */
+        #view-map { background-color: var(--col-map-ocean); touch-action: none; width: 100%; height: 100%; position: absolute; overflow: hidden; }
+        #map-svg { width: 100%; height: 100%; touch-action: none; display: block; }
+        
+        /* Panels (Management Screens) */
+        .mgmt-panel { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: var(--col-bg-dark); padding: 20px; overflow-y: auto; z-index: 10; display: none; }
+        .mgmt-panel.active { display: block; }
+        .panel-header-title { font-size: 1.5rem; font-weight: bold; margin-bottom: 20px; border-bottom: 2px solid var(--panel-border); padding-bottom: 10px; }
+        
+        /* Grids & Cards */
+        .data-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
+        .card { background-color: var(--col-bg-panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px var(--shadow-color); display: flex; flex-direction: column; }
+        .card-header { font-weight: bold; font-size: 1.1rem; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--col-bg-dark); padding-bottom: 5px; }
+        .card-body { font-size: 0.9rem; color: var(--col-text-main); flex: 1; line-height: 1.6; }
+        
+        /* Modal System */
+        #custom-modal { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; background-color: var(--shadow-strong); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(2px); }
+        .modal-content { background-color: var(--col-bg-panel); width: 90%; max-width: 500px; max-height: 90vh; display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 40px var(--shadow-strong); border: 1px solid var(--panel-border); }
+        .modal-header { padding: 15px 20px; background-color: var(--col-bg-dark); font-weight: bold; border-bottom: 1px solid var(--panel-border); display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 20px; font-size: 0.95rem; line-height: 1.5; overflow-y: auto; flex: 1; }
+        .modal-footer { padding: 15px 20px; background-color: var(--col-bg-hover); display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--panel-border); }
+
+        .company-logo-preview { display: none; margin-top: 8px; padding: 10px; border: 1px dashed var(--panel-border); border-radius: 8px; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .company-logo-preview img { display: block; max-width: 180px; max-height: 90px; width: auto; height: auto; object-fit: contain; }
+
+        @media (max-width: 768px) {
+            .hq-header { flex-wrap: wrap; height: auto; padding: 10px; padding-top: 50px; gap: 10px; }
+            .header-stats { width: 100%; justify-content: flex-start; padding-right: 0; gap: 10px;}
+            .hq-sidebar { position: absolute; transform: translateX(-100%); transition: transform 0.3s; z-index: 30; height: 100%; box-shadow: 2px 0 10px var(--shadow-color); }
+            .hq-sidebar.open { transform: translateX(0); }
+            .mobile-menu-btn { display: block !important; background: none; border: none; color: var(--col-text-main); font-size: 1.5rem; margin-right: 10px;}
+            .theme-toggle { top: 10px; right: 10px; padding: 6px 12px; }
+        }
+        .mobile-menu-btn { display: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <!-- Theme Toggle -->
+    <button class="theme-toggle" onclick="ThemeManager.toggleTheme()">
+        <span id="theme-icon">🌙</span>
+        <span id="theme-text">ダークモード</span>
+    </button>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- Modal -->
+    <div id="custom-modal" class="hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span id="modal-title">Message</span>
+                <span style="cursor:pointer; color:var(--col-text-muted);" onclick="UI.hideModal()">✕</span>
+            </div>
+            <div class="modal-body" id="modal-message">...</div>
+            <div class="modal-footer" id="modal-footer-btns">
+                <button class="btn" onclick="UI.hideModal()">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Screen 1: Title -->
+    <div id="screen-title" class="screen">
+        <div class="title-logo">RAILWAY TYCOON <span>JAPAN</span></div>
+        <div class="title-menu">
+            <button class="btn" onclick="UI.switchScreen('screen-new-game-setup')">NEW GAME</button>
+            <button class="btn btn-outline" id="btn-continue" onclick="Game.loadGame()" disabled>LOAD GAME</button>
+            <button class="btn btn-outline" onclick="UI.showSettingsModal()">SETTINGS</button>
+        </div>
+        <div style="position: absolute; bottom: 20px; color: var(--col-text-muted); font-size: 0.8rem; text-align: center; line-height: 1.4;">
+            Version v0.1<br>基本システムの構築
+        </div>
+    </div>
+
+    <!-- Screen 2: New Game Setup (Region, Difficulty, Competitor) -->
+    <div id="screen-new-game-setup" class="screen hidden" style="justify-content: center; padding: 20px; overflow-y: auto;">
+        <div class="form-container" style="margin-top: auto; margin-bottom: auto;">
+            <h2 class="form-title">新規ゲーム設定</h2>
+            <form onsubmit="Game.proceedToCompanySetup(event)">
+                
+                <div class="input-group">
+                    <label>事業展開地域の選択</label>
+                    <div class="region-grid" id="region-selector">
+                        <!-- JSで生成 -->
+                    </div>
+                    <div id="region-description" class="region-desc">地域を選択してください。</div>
+                    <input type="hidden" id="setup-region" required>
+                </div>
+
+                <div class="flex" style="gap: 15px;">
+                    <div class="input-group w-full">
+                        <label for="setup-comp">競合会社 (AI)</label>
+                        <select id="setup-comp" class="input-field">
+                            <option value="yes">あり</option>
+                            <option value="no">なし (単独経営)</option>
+                        </select>
+                    </div>
+                    <div class="input-group w-full">
+                        <label for="setup-diff">難易度 (初期資金)</label>
+                        <select id="setup-diff" class="input-field" onchange="Game.updateDifficultyDesc()">
+                            <option value="easy">かんたん</option>
+                            <option value="normal" selected>中くらい</option>
+                            <option value="hard">むずかしい</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="diff-description" class="text-muted" style="font-size: 0.8rem; margin-bottom: 1rem;"></div>
+
+                <div class="flex justify-between" style="margin-top: 1rem;">
+                    <button type="button" class="btn btn-outline" onclick="UI.switchScreen('screen-title')">戻る</button>
+                    <button type="submit" class="btn">次へ (会社設立) ➔</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Screen 3: Company Setup -->
+    <div id="screen-new-company" class="screen hidden" style="justify-content: center; padding: 20px; overflow-y: auto;">
+        <div class="form-container" style="margin-top: auto; margin-bottom: auto;">
+            <h2 class="form-title">鉄道会社 設立申請</h2>
+            <form onsubmit="Game.startNewGame(event)">
+                <div class="input-group">
+                    <label for="c-name">鉄道会社名</label>
+                    <input type="text" id="c-name" class="input-field" minlength="2" maxlength="30" required placeholder="例: 日本中央鉄道">
+                </div>
+                
+                <div class="input-group" style="margin-top: 5px;">
+                    <label for="c-logo">会社ロゴ（任意）</label>
+                    <input type="file" id="c-logo" class="input-field" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" onchange="Game.handleLogoSelect(this)">
+                    <div class="text-muted" style="font-size: .8rem; margin-top: 4px;">PNG / JPG / WEBP（自動的に縮小保存されます）</div>
+                    <div id="c-logo-preview" class="company-logo-preview">
+                        <img id="c-logo-preview-img" alt="ロゴプレビュー">
+                        <button type="button" class="btn btn-outline btn-sm" onclick="Game.clearLogo()">画像を削除</button>
+                    </div>
+                </div>
+
+                <div class="flex" style="gap: 15px;">
+                    <div class="input-group w-full">
+                        <label for="c-color">ブランドカラー</label>
+                        <input type="color" id="c-color" class="input-field" value="#059669" style="height: 44px; padding: 5px; cursor: pointer;">
+                    </div>
+                    <div class="input-group w-full">
+                        <label for="c-hq">本社所在地 (仮)</label>
+                        <select id="c-hq" class="input-field" required>
+                            <!-- JSで選択地域に応じて生成 -->
+                        </select>
+                    </div>
+                </div>
+                <div class="text-muted" style="font-size:0.8rem; margin-bottom:1rem;">※詳細な駅建設や線路敷設は今後のアップデートで実装されます。今回は基本拠点の指定のみです。</div>
+
+                <div class="flex justify-between" style="margin-top: 1rem;">
+                    <button type="button" class="btn btn-outline" onclick="UI.switchScreen('screen-new-game-setup')">戻る</button>
+                    <button type="submit" class="btn">事業を開始する</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Screen 4: Headquarters -->
+    <div id="screen-hq" class="screen hidden">
+        <header class="hq-header">
+            <div class="flex items-center">
+                <button class="mobile-menu-btn" onclick="UI.toggleSidebar()">☰</button>
+                <div class="header-company">
+                    <div id="hq-brand-dot" class="brand-color-dot"></div>
+                    <span id="hq-comp-name">Company Name</span>
+                    <img id="hq-company-logo" alt="会社ロゴ">
+                </div>
+            </div>
+            
+            <div class="header-stats">
+                <div class="stat-item"><span class="stat-label">現在の日付</span><span class="stat-value" id="hq-date">-</span></div>
+                <div class="stat-item"><span class="stat-label">保有資金</span><span class="stat-value text-success" id="hq-funds">-</span></div>
+                <div class="stat-item"><span class="stat-label">駅/路線/車両</span><span class="stat-value"><span id="hq-stations">0</span> / <span id="hq-routes">0</span> / <span id="hq-trains">0</span></span></div>
+                
+                <div>
+                    <button class="btn" style="padding: 6px 15px;" onclick="Logic.advanceDay()" id="btn-next-day">NEXT DAY ➔</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="hq-body">
+            <!-- Navigation -->
+            <aside class="hq-sidebar" id="hq-sidebar">
+                <div class="nav-item active" onclick="UI.switchMainView('view-map', this)">MAP</div>
+                <div class="nav-item" onclick="UI.switchMainView('view-stations', this)">STATIONS (駅)</div>
+                <div class="nav-item" onclick="UI.switchMainView('view-routes', this)">ROUTES (路線)</div>
+                <div class="nav-item" onclick="UI.switchMainView('view-trains', this)">TRAINS (車両)</div>
+                <div class="nav-item" onclick="UI.switchMainView('view-operations', this)">OPERATIONS (運行)</div>
+                <div class="nav-item" onclick="UI.switchMainView('view-finance', this)">FINANCE (財務)</div>
+                <div class="nav-item" onclick="UI.switchMainView('view-management', this)">MANAGEMENT (経営)</div>
+                <div class="nav-item" onclick="UI.switchMainView('view-competitors', this)">COMPETITORS (競合)</div>
+                <div style="flex:1;"></div>
+                <div class="nav-item" onclick="Game.saveGame(true)">💾 セーブ</div>
+                <div class="nav-item text-danger" onclick="Game.returnToTitle()">タイトルへ戻る</div>
+            </aside>
+
+            <!-- Dynamic Views Area -->
+            <div class="hq-main-view">
+                
+                <!-- 1. Map View -->
+                <main id="view-map" class="mgmt-panel active" style="padding:0;">
+                    <div style="position:absolute; top:20px; left:20px; background:var(--col-bg-panel); padding:15px; border-radius:8px; border:1px solid var(--panel-border); box-shadow:0 4px 10px var(--shadow-color); z-index:20;">
+                        <h3 style="margin-bottom:5px;" id="map-region-name">展開地域</h3>
+                        <p class="text-muted" style="font-size:0.85rem;">※路線網マップシステムは現在開発中です。<br>今後のアップデートで駅や線路の敷設機能が追加されます。</p>
+                    </div>
+                    <!-- 簡易的な日本地図表示用SVG -->
+                    <svg id="map-svg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice">
+                        <g id="map-outline" transform="translate(-50, -100) scale(1.3)"></g>
+                    </svg>
+                </main>
+
+                <!-- Placeholder Views for Future Updates -->
+                <div id="view-stations" class="mgmt-panel">
+                    <div class="panel-header-title">STATIONS (駅の管理・建設)</div>
+                    <div class="card"><div class="card-body">この機能は今後のアップデート（v0.2以降）で実装予定です。<br>駅の建設、拡張、商業施設（駅ナカ）の管理などが可能になります。</div></div>
+                </div>
+
+                <div id="view-routes" class="mgmt-panel">
+                    <div class="panel-header-title">ROUTES (線路・路線の管理)</div>
+                    <div class="card"><div class="card-body">この機能は今後のアップデートで実装予定です。<br>駅間の線路敷設（物理インフラ）と、そこを走る運行系統の管理を行います。</div></div>
+                </div>
+
+                <div id="view-trains" class="mgmt-panel">
+                    <div class="panel-header-title">TRAINS (車両管理)</div>
+                    <div class="card"><div class="card-body">この機能は今後のアップデートで実装予定です。<br>通勤形、近郊形、特急形などの各種車両の購入・リース、編成の編成組み替えを管理します。</div></div>
+                </div>
+
+                <div id="view-operations" class="mgmt-panel">
+                    <div class="panel-header-title">OPERATIONS (運行・ダイヤ設定)</div>
+                    <div class="card"><div class="card-body">この機能は今後のアップデートで実装予定です。<br>路線への車両割り当て、運行間隔、運賃設定、乗客需要の分析を行います。</div></div>
+                </div>
+
+                <div id="view-finance" class="mgmt-panel">
+                    <div class="panel-header-title">FINANCE (財務・統計)</div>
+                    <div class="card"><div class="card-body">この機能は今後のアップデートで実装予定です。<br>鉄道事業収益、関連事業収益、車両・設備の維持費などの月次/年次レポートを提供します。</div></div>
+                </div>
+
+                <div id="view-management" class="mgmt-panel">
+                    <div class="panel-header-title">MANAGEMENT (経営戦略)</div>
+                    <div class="card"><div class="card-body">この機能は今後のアップデートで実装予定です。<br>他社との直通運転契約、地域間接続プロジェクト、銀行融資などの特別経営施策を実行します。</div></div>
+                </div>
+
+                <div id="view-competitors" class="mgmt-panel">
+                    <div class="panel-header-title">COMPETITORS (競合他社)</div>
+                    <div class="card"><div class="card-body">この機能は今後のアップデートで実装予定です。<br>AIによって動作するライバル鉄道会社の路線網や経営状況を確認できます。</div></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * RAILWAY TYCOON JAPAN v0.1
+         * 基本システムの構築 (UI, Title, Setup, Save/Load, Day Advance)
+         */
+
+        // ==========================================
+        // Game Static Data
+        // ==========================================
+        const GameData = {
+            VERSION: "0.1",
+            SAVE_KEY: "rtj_save_v01",
+            START_DATE: "2025-04-01",
+            
+            REGIONS: [
+                { id: 'hokkaido', name: '北海道', hqOptions: ['札幌中央', '函館', '旭川'], desc: '広大な大地。都市間輸送と地域密着の路線が鍵となります。' },
+                { id: 'tohoku', name: '東北', hqOptions: ['仙台中央', '盛岡', '青森'], desc: '広域ネットワークと地域路線のバランスが求められます。' },
+                { id: 'kanto', name: '関東', hqOptions: ['東京中央', '横浜', '大宮'], desc: '日本最大の人口を抱える巨大市場。莫大な通勤需要に応える大規模輸送が必要です。' },
+                { id: 'chubu', name: '中部', hqOptions: ['名古屋中央', '新潟', '金沢'], desc: '太平洋側から日本海側までを含む多様な地形。大都市間の接続も重要です。' },
+                { id: 'kinki', name: '近畿', hqOptions: ['大阪中央', '京都', '神戸'], desc: '私鉄網が発達した激戦区。独自のサービスとネットワークで競合に打ち勝つ必要があります。' },
+                { id: 'chugoku', name: '中国', hqOptions: ['広島中央', '岡山', '米子'], desc: '山陽・山陰地方。主要都市間の連絡とローカル線の維持が課題となります。' },
+                { id: 'shikoku', name: '四国', hqOptions: ['高松', '松山', '徳島'], desc: '4県をまたぐネットワーク。独自の経営戦略が試される地域です。' },
+                { id: 'kyushu', name: '九州', hqOptions: ['福岡中央', '熊本', '鹿児島'], desc: '独自の進化を遂げた鉄道網。観光需要と都市間輸送の両立が鍵となります。' }
+            ],
+
+            DIFFICULTIES: {
+                easy:   { name: 'かんたん', funds: 100000000000, desc: '初期資金が1,000億円付与されます。経営を拡大しやすい設定です。' },
+                normal: { name: '中くらい', funds: 50000000000,  desc: '初期資金が500億円付与されます。標準的な設定です。' },
+                hard:   { name: 'むずかしい', funds: 15000000000,  desc: '初期資金が150億円付与されます。厳しい資金繰りが求められます。' }
+            },
+
+            // 簡易的な日本地図用のポリゴンデータ（描画用）
+            MAP_POLYGONS: [
+                [[41.4,140.2], [45.5,142.0], [44.3,145.3], [42.0,143.2], [41.4,140.2]], // 北海道
+                [[40.9,140.5], [37.9,139.0], [36.7,136.7], [34.7,131.5], [33.4,135.8], [34.6,138.8], [35.6,140.0], [38.3,141.5], [40.9,140.5]], // 本州
+                [[33.8,132.0], [34.4,133.0], [33.8,134.7], [32.7,133.0], [33.8,132.0]], // 四国
+                [[33.9,131.0], [33.6,130.4], [31.2,130.6], [32.5,131.8], [33.9,131.0]]  // 九州
+            ]
+        };
+
+        // Player Game State Object
+        let Player = null;
+
+        // ==========================================
+        // Theme & UI Manager
+        // ==========================================
+        const ThemeManager = {
+            THEME_KEY: "rtj_theme_pref",
+            current: "light",
+            init() {
+                let saved = "light";
+                try { const stored = localStorage.getItem(this.THEME_KEY); if (stored === "dark" || stored === "light") saved = stored; } catch(e) {}
+                this.setTheme(saved);
+            },
+            toggleTheme() { this.setTheme(this.current === "light" ? "dark" : "light"); },
+            setTheme(theme) {
+                this.current = theme;
+                if (theme === "dark") {
+                    document.body.setAttribute('data-theme', 'dark');
+                    document.getElementById('theme-icon').textContent = '☀️'; document.getElementById('theme-text').textContent = 'ライト';
+                } else {
+                    document.body.removeAttribute('data-theme');
+                    document.getElementById('theme-icon').textContent = '🌙'; document.getElementById('theme-text').textContent = 'ダーク';
+                }
+                try { localStorage.setItem(this.THEME_KEY, theme); } catch(e){}
+            }
+        };
+
+        const UI = {
+            switchScreen(id) { 
+                document.querySelectorAll('.screen').forEach(e => e.classList.add('hidden')); 
+                document.getElementById(id).classList.remove('hidden'); 
+            },
+            switchMainView(id, navElem) {
+                document.querySelectorAll('.mgmt-panel').forEach(e => e.classList.remove('active'));
+                document.getElementById(id).classList.add('active');
+                document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+                if(navElem) navElem.classList.add('active');
+                if(window.innerWidth <= 768) this.toggleSidebar();
+            },
+            showModal(title, msg, contentHtml = null, btnsHtml = null) {
+                document.getElementById('modal-title').textContent = title;
+                const body = document.getElementById('modal-message');
+                if (contentHtml) body.innerHTML = contentHtml; else body.textContent = msg;
+                const footer = document.getElementById('modal-footer-btns');
+                footer.innerHTML = btnsHtml || '<button class="btn" onclick="UI.hideModal()">OK</button>';
+                document.getElementById('custom-modal').classList.remove('hidden');
+            },
+            hideModal() { document.getElementById('custom-modal').classList.add('hidden'); },
+            showToast(msg, type='info') {
+                const c = document.getElementById('toast-container'); const t = document.createElement('div'); t.className = `toast ${type}`; t.textContent = msg;
+                c.appendChild(t); void t.offsetWidth; t.classList.add('show');
+                setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3000);
+            },
+            updateHeader() {
+                if (!Player || !Player.company) return;
+                document.getElementById('hq-comp-name').textContent = Player.company.name;
+                const logoEl = document.getElementById('hq-company-logo');
+                const headerEl = document.querySelector('.header-company');
+                
+                if (Player.company.logo) {
+                    logoEl.src = Player.company.logo;
+                    logoEl.style.display = 'block';
+                    headerEl.classList.add('has-logo');
+                } else {
+                    logoEl.removeAttribute('src');
+                    logoEl.style.display = 'none';
+                    headerEl.classList.remove('has-logo');
+                }
+                
+                document.getElementById('hq-brand-dot').style.backgroundColor = Player.company.color;
+                
+                // Format Date
+                const [y,m,d] = Player.company.date.split('-').map(Number);
+                const dateObj = new Date(y, m-1, d);
+                const w = ['日','月','火','水','木','金','土'];
+                document.getElementById('hq-date').textContent = `${y}/${m}/${d}(${w[dateObj.getDay()]})`;
+                
+                // Format Money
+                document.getElementById('hq-funds').textContent = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(Player.company.funds);
+                
+                // Stats
+                document.getElementById('hq-stations').textContent = Player.stats.stations;
+                document.getElementById('hq-routes').textContent = Player.stats.routes;
+                document.getElementById('hq-trains').textContent = Player.stats.trains;
+            },
+            toggleSidebar() { document.getElementById('hq-sidebar').classList.toggle('open'); },
+            showSettingsModal() {
+                const html = `
+                    <div class="card"><div class="card-body">
+                        <p>現在利用可能な設定項目です。</p>
+                        <div style="margin-top: 15px;">
+                            <button class="btn btn-outline w-full" onclick="ThemeManager.toggleTheme(); UI.hideModal();">画面テーマ切り替え (ライト/ダーク)</button>
+                        </div>
+                    </div></div>
+                `;
+                this.showModal('SETTINGS (設定)', '', html, '<button class="btn" onclick="UI.hideModal()">閉じる</button>');
+            }
+        };
+
+        // ==========================================
+        // Game Logic & Initialization
+        // ==========================================
+        const Game = {
+            init() {
+                ThemeManager.init();
+                this.checkSavedData();
+                this.buildRegionSelector();
+                this.drawMap();
+            },
+            
+            checkSavedData() {
+                try {
+                    const saved = localStorage.getItem(GameData.SAVE_KEY);
+                    if (saved) {
+                        const data = JSON.parse(saved);
+                        if (data && data.version && data.company) {
+                            document.getElementById('btn-continue').disabled = false;
+                            document.getElementById('btn-continue').textContent = `LOAD GAME (${data.company.name})`;
+                        }
+                    }
+                } catch(e) {
+                    console.error("Save data check failed", e);
+                }
+            },
+
+            buildRegionSelector() {
+                const container = document.getElementById('region-selector');
+                container.innerHTML = '';
+                GameData.REGIONS.forEach(reg => {
+                    const el = document.createElement('div');
+                    el.className = 'region-card';
+                    el.textContent = reg.name;
+                    el.onclick = () => this.selectRegion(reg.id, el);
+                    container.appendChild(el);
+                });
+            },
+
+            selectRegion(id, elem) {
+                document.querySelectorAll('.region-card').forEach(e => e.classList.remove('selected'));
+                if(elem) elem.classList.add('selected');
+                document.getElementById('setup-region').value = id;
+                const reg = GameData.REGIONS.find(r => r.id === id);
+                document.getElementById('region-description').textContent = reg ? reg.desc : '';
+            },
+
+            updateDifficultyDesc() {
+                const val = document.getElementById('setup-diff').value;
+                const diff = GameData.DIFFICULTIES[val];
+                document.getElementById('diff-description').textContent = diff ? diff.desc : '';
+            },
+
+            proceedToCompanySetup(e) {
+                e.preventDefault();
+                const region = document.getElementById('setup-region').value;
+                if (!region) {
+                    UI.showToast("展開する地域を選択してください。", "error");
+                    return;
+                }
+                
+                // 選択された地域に応じて、仮の本社所在地のセレクトボックスを構築
+                const regData = GameData.REGIONS.find(r => r.id === region);
+                const hqSelect = document.getElementById('c-hq');
+                hqSelect.innerHTML = '';
+                regData.hqOptions.forEach(opt => {
+                    hqSelect.innerHTML += `<option value="${opt}">${opt}駅</option>`;
+                });
+
+                document.getElementById('form-setup' /* Assuming we have one? Wait, no form ID on company setup */)
+                UI.switchScreen('screen-new-company');
+            },
+
+            handleLogoSelect(input) {
+                const file = input && input.files ? input.files[0] : null;
+                const preview = document.getElementById('c-logo-preview');
+                const previewImg = document.getElementById('c-logo-preview-img');
+                if (!file) { this.clearLogo(); return; }
+                
+                const extOk = /\.(png|jpe?g|webp)$/i.test(file.name || '');
+                if (!extOk || file.size > 5 * 1024 * 1024) {
+                    input.value = ''; this.clearLogo();
+                    UI.showToast('PNG/JPG/WEBP形式、5MB以下の画像を選択してください。', 'warning');
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const img = new Image();
+                    img.onload = () => {
+                        // 簡易リサイズ処理
+                        const canvas = document.createElement('canvas');
+                        const MAX_WIDTH = 400; const MAX_HEIGHT = 150;
+                        let width = img.width; let height = img.height;
+                        if (width > height) {
+                            if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                        } else {
+                            if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                        }
+                        canvas.width = width; canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        previewImg.src = canvas.toDataURL('image/webp', 0.8);
+                        preview.style.display = 'flex';
+                    };
+                    img.src = reader.result;
+                };
+                reader.readAsDataURL(file);
+            },
+
+            clearLogo() {
+                document.getElementById('c-logo').value = '';
+                document.getElementById('c-logo-preview-img').removeAttribute('src');
+                document.getElementById('c-logo-preview').style.display = 'none';
+            },
+
+            startNewGame(e) {
+                e.preventDefault();
+                const name = document.getElementById('c-name').value.trim();
+                const logoImg = document.getElementById('c-logo-preview-img').getAttribute('src');
+                const color = document.getElementById('c-color').value;
+                const hq = document.getElementById('c-hq').value;
+                const regionId = document.getElementById('setup-region').value;
+                const diffId = document.getElementById('setup-diff').value;
+                const hasComp = document.getElementById('setup-comp').value === 'yes';
+
+                const diff = GameData.DIFFICULTIES[diffId];
+                const region = GameData.REGIONS.find(r => r.id === regionId);
+
+                // Create Game State
+                Player = {
+                    version: GameData.VERSION,
+                    metadata: { createdAt: new Date().toISOString() },
+                    company: {
+                        name: name,
+                        logo: logoImg,
+                        color: color,
+                        hq: hq,
+                        funds: diff.funds,
+                        date: GameData.START_DATE
+                    },
+                    settings: {
+                        region: regionId,
+                        difficulty: diffId,
+                        hasCompetitor: hasComp
+                    },
+                    // 将来の拡張用データ領域
+                    data: {
+                        stations: [],
+                        tracks: [],
+                        routes: [], // 運行系統
+                        trains: [],
+                        competitors: [] // CPUデータ
+                    },
+                    stats: {
+                        stations: 0,
+                        tracks: 0,
+                        routes: 0,
+                        trains: 0
+                    }
+                };
+
+                document.getElementById('map-region-name').textContent = `展開地域: ${region.name}`;
+                this.saveGame(false);
+                UI.showToast("新会社を設立しました！", "success");
+                this.enterHQ();
+            },
+
+            loadGame() {
+                try {
+                    const rawText = localStorage.getItem(GameData.SAVE_KEY);
+                    if (!rawText) return;
+                    const data = JSON.parse(rawText);
+                    
+                    if (data.version !== GameData.VERSION) {
+                        UI.showToast("異なるバージョンのセーブデータです。今後のアップデートで互換機能が提供される可能性があります。", "warning");
+                    }
+                    
+                    Player = data;
+                    const region = GameData.REGIONS.find(r => r.id === Player.settings.region);
+                    document.getElementById('map-region-name').textContent = `展開地域: ${region ? region.name : '不明'}`;
+                    
+                    this.enterHQ();
+                    UI.showToast("データを読み込みました", "success");
+                } catch(e) {
+                    console.error(e);
+                    UI.showModal("ロードエラー", "セーブデータが破損しているか、読み込むことができません。");
+                }
+            },
+
+            saveGame(manual = false) {
+                if (!Player) return false;
+                try {
+                    localStorage.setItem(GameData.SAVE_KEY, JSON.stringify(Player));
+                    if(manual) UI.showToast("ゲームをセーブしました", "success");
+                    return true;
+                } catch(e) {
+                    console.error("Save failed", e);
+                    UI.showModal("保存エラー", "データの保存に失敗しました。ロゴ画像が大きすぎる場合などに発生することがあります。");
+                    return false;
+                }
+            },
+
+            enterHQ() {
+                UI.switchScreen('screen-hq');
+                UI.updateHeader();
+                UI.switchMainView('view-map', document.querySelector('.hq-sidebar .nav-item')); // Activate MAP by default
+            },
+
+            returnToTitle() {
+                this.saveGame(true);
+                Player = null;
+                this.checkSavedData(); // Update title button
+                UI.switchScreen('screen-title');
+            },
+            
+            // 地図描画ロジック（AIRLINE TYCOON流用）
+            drawMap() {
+                const group = document.getElementById('map-outline');
+                group.innerHTML = '';
+                
+                const width = 1000, height = 1000;
+                // 日本の緯度経度をSVG座標系に簡易マッピング
+                const project = (lat, lon) => {
+                    const x = ((lon - 127.0) / (146.5 - 127.0)) * width;
+                    const r = Math.PI / 180;
+                    const yLat = Math.log(Math.tan(Math.PI/4 + (lat * r)/2));
+                    const yMin = Math.log(Math.tan(Math.PI/4 + (25.5 * r)/2));
+                    const yMax = Math.log(Math.tan(Math.PI/4 + (46.0 * r)/2));
+                    const y = height - ((yLat - yMin) / (yMax - yMin)) * height;
+                    return { x, y };
+                };
+
+                GameData.MAP_POLYGONS.forEach(p => {
+                    const pts = p.map(c => { const pt = project(c[0], c[1]); return `${pt.x},${pt.y}`; }).join(' ');
+                    const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+                    poly.setAttribute("points", pts);
+                    poly.setAttribute("fill", "var(--col-map-land)");
+                    poly.setAttribute("stroke", "var(--col-map-border)");
+                    poly.setAttribute("stroke-width", "2");
+                    poly.setAttribute("stroke-linejoin", "round");
+                    group.appendChild(poly);
+                });
+            }
+        };
+
+        // ==========================================
+        // Core Logic
+        // ==========================================
+        const Logic = {
+            isAdvancing: false,
+            
+            advanceDay() {
+                if(this.isAdvancing || !Player) return;
+                this.isAdvancing = true;
+                const btn = document.getElementById('btn-next-day');
+                btn.disabled = true;
+
+                // 1日進める処理
+                const [y, m, d] = Player.company.date.split('-').map(Number);
+                let dateObj = new Date(y, m - 1, d);
+                dateObj.setDate(dateObj.getDate() + 1);
+                
+                const nextY = dateObj.getFullYear();
+                const nextM = String(dateObj.getMonth() + 1).padStart(2, '0');
+                const nextD = String(dateObj.getDate()).padStart(2, '0');
+                
+                Player.company.date = `${nextY}-${nextM}-${nextD}`;
+
+                // 将来ここに乗客計算や財務処理、AI行動処理を追加します
+                this.dailyCalculations();
+
+                // UI更新
+                UI.updateHeader();
+                
+                // ボタン復帰
+                setTimeout(() => {
+                    this.isAdvancing = false;
+                    btn.disabled = false;
+                }, 150); // 連続クリック防止の短いディレイ
+            },
+
+            dailyCalculations() {
+                // v0.1ではスタブ（処理なし）
+                // 例: 車両の維持費引き落とし、路線の運賃計算など
+            }
+        };
+
+        // Initialize on Load
+        window.onload = () => {
+            Game.init();
+            Game.updateDifficultyDesc(); // Set initial text
+        };
+    </script>
+</body>
+</html>
