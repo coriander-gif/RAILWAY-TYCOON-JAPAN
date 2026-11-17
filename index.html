@@ -148,6 +148,13 @@
         .card-header { font-weight: bold; font-size: 1.1rem; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--col-bg-dark); padding-bottom: 5px; }
         .card-body { font-size: 0.9rem; color: var(--col-text-main); flex: 1; line-height: 1.6; }
         
+        /* Table Responsive Container */
+        .table-container { width: 100%; overflow-x: auto; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; white-space: nowrap; margin-bottom: 10px; }
+        .data-table th, .data-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--panel-border); }
+        .data-table th { background-color: var(--col-bg-hover); font-weight: bold; color: var(--col-text-muted); }
+        .data-table tr:hover td { background-color: var(--col-bg-dark); }
+
         /* Modal System */
         #custom-modal { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; background-color: var(--shadow-strong); display: flex; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(2px); }
         .modal-content { background-color: var(--col-bg-panel); width: 90%; max-width: 500px; max-height: 90vh; display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 40px var(--shadow-strong); border: 1px solid var(--panel-border); }
@@ -165,6 +172,9 @@
             .hq-sidebar.open { transform: translateX(0); }
             .mobile-menu-btn { display: block !important; background: none; border: none; color: var(--col-text-main); font-size: 1.5rem; margin-right: 10px;}
             .theme-toggle { top: 10px; right: 10px; padding: 6px 12px; }
+            
+            .table-container { display: none; }
+            #st-cards-mobile { display: flex !important; }
         }
         .mobile-menu-btn { display: none; cursor: pointer; }
     </style>
@@ -203,7 +213,7 @@
             <button class="btn btn-outline" onclick="UI.showSettingsModal()">SETTINGS</button>
         </div>
         <div style="position: absolute; bottom: 20px; color: var(--col-text-muted); font-size: 0.8rem; text-align: center; line-height: 1.4;">
-            Version v0.1.1<br>セーブ機能安定化と自動保存
+            Version v0.1.2<br>駅データベースの基礎実装
         </div>
     </div>
 
@@ -345,12 +355,72 @@
                     </svg>
                 </main>
 
-                <!-- Placeholder Views for Future Updates -->
+                <!-- Stations View -->
                 <div id="view-stations" class="mgmt-panel">
-                    <div class="panel-header-title">STATIONS (駅の管理・建設)</div>
-                    <div class="card"><div class="card-body">この機能は今後のアップデート（v0.2以降）で実装予定です。<br>駅の建設、拡張、商業施設（駅ナカ）の管理などが可能になります。</div></div>
+                    <div class="panel-header-title">STATIONS (駅情報データベース)</div>
+                    <div class="card" style="margin-bottom: 20px;">
+                        <div class="card-body">
+                            <p style="margin-bottom: 15px; font-size: 1.05rem;">現在の展開地域: <b id="st-region-name" style="color: var(--col-primary);">-</b></p>
+                            
+                            <div class="flex" style="gap: 10px; flex-wrap: wrap;">
+                                <div class="input-group" style="flex: 1; min-width: 150px; margin-bottom: 0;">
+                                    <input type="text" id="st-search-name" class="input-field" placeholder="駅名・読み仮名で検索..." onkeyup="Views.stationFilter.keyword=this.value; Views.updateStationsList();">
+                                </div>
+                                <div class="input-group" style="flex: 1; min-width: 120px; margin-bottom: 0;">
+                                    <select id="st-filter-pref" class="input-field" onchange="Views.stationFilter.pref=this.value; Views.updateStationsList();">
+                                        <option value="">全ての都道府県</option>
+                                    </select>
+                                </div>
+                                <div class="input-group" style="flex: 1; min-width: 120px; margin-bottom: 0;">
+                                    <select id="st-filter-type" class="input-field" onchange="Views.stationFilter.type=this.value; Views.updateStationsList();">
+                                        <option value="">全ての駅種類</option>
+                                        <option value="一般駅">一般駅</option>
+                                        <option value="主要駅">主要駅</option>
+                                        <option value="ターミナル駅">ターミナル駅</option>
+                                        <option value="新幹線駅">新幹線駅</option>
+                                    </select>
+                                </div>
+                                <div class="input-group" style="flex: 1; min-width: 120px; margin-bottom: 0;">
+                                    <select id="st-filter-scale" class="input-field" onchange="Views.stationFilter.scale=this.value; Views.updateStationsList();">
+                                        <option value="">全ての規模</option>
+                                        <option value="大規模">大規模</option>
+                                        <option value="中規模">中規模</option>
+                                        <option value="小規模">小規模</option>
+                                    </select>
+                                </div>
+                                <div class="input-group" style="flex: 1; min-width: 120px; margin-bottom: 0;">
+                                    <select id="st-filter-company" class="input-field" onchange="Views.stationFilter.company=this.value; Views.updateStationsList();">
+                                        <option value="">全ての鉄道会社</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-muted" style="margin-bottom: 15px; font-size: 0.85rem;">※ここに表示されている駅はマスターデータであり、現在プレイヤーが所有している駅ではありません。将来のアップデートで駅を建設・取得する際に利用されます。</div>
+                    
+                    <div class="card table-container" id="st-table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>駅名</th>
+                                    <th>都道府県</th>
+                                    <th>市区町村</th>
+                                    <th>種類</th>
+                                    <th>規模</th>
+                                    <th>乗り入れ会社</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="st-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div id="st-cards-mobile" style="display: none; flex-direction: column; gap: 10px;">
+                    </div>
                 </div>
 
+                <!-- Placeholder Views for Future Updates -->
                 <div id="view-routes" class="mgmt-panel">
                     <div class="panel-header-title">ROUTES (線路・路線の管理)</div>
                     <div class="card"><div class="card-body">この機能は今後のアップデートで実装予定です。<br>駅間の線路敷設（物理インフラ）と、そこを走る運行系統の管理を行います。</div></div>
@@ -385,17 +455,17 @@
         </div>
     </div>
 
-    <script>
+        <script>
         /**
-         * RAILWAY TYCOON JAPAN v0.1.1
-         * 基本システムの構築 (UI, Title, Setup, Save/Load, Day Advance)
+         * RAILWAY TYCOON JAPAN v0.1.2
+         * 基本システムの構築 (UI, Title, Setup, Save/Load, Day Advance) + 駅データベース
          */
 
         // ==========================================
         // Game Static Data
         // ==========================================
         const GameData = {
-            VERSION: "0.1.1",
+            VERSION: "0.1.2",
             SAVE_KEY: "rtj_save_v01",
             START_DATE: "2025-04-01",
             
@@ -422,6 +492,54 @@
                 [[40.9,140.5], [37.9,139.0], [36.7,136.7], [34.7,131.5], [33.4,135.8], [34.6,138.8], [35.6,140.0], [38.3,141.5], [40.9,140.5]], // 本州
                 [[33.8,132.0], [34.4,133.0], [33.8,134.7], [32.7,133.0], [33.8,132.0]], // 四国
                 [[33.9,131.0], [33.6,130.4], [31.2,130.6], [32.5,131.8], [33.9,131.0]]  // 九州
+            ],
+
+            // 駅マスターデータベース
+            STATION_MASTER: [
+                // 北海道
+                { id: 'st_sapporo', name: '札幌', kana: 'さっぽろ', pref: '北海道', city: '札幌市北区', region: 'hokkaido', lat: 43.0686, lon: 141.3508, type: 'ターミナル駅', companies: ['JR北海道', '札幌市営地下鉄'], scale: '大規模', desc: '北海道最大のターミナル駅。' },
+                { id: 'st_hakodate', name: '函館', kana: 'はこだて', pref: '北海道', city: '函館市', region: 'hokkaido', lat: 41.7737, lon: 140.7264, type: '主要駅', companies: ['JR北海道', '函館市電'], scale: '中規模', desc: '道南の拠点駅。' },
+                { id: 'st_asahikawa', name: '旭川', kana: 'あさひかわ', pref: '北海道', city: '旭川市', region: 'hokkaido', lat: 43.7627, lon: 142.3587, type: '主要駅', companies: ['JR北海道'], scale: '中規模', desc: '道北の拠点駅。' },
+                
+                // 東北
+                { id: 'st_sendai', name: '仙台', kana: 'せんだい', pref: '宮城県', city: '仙台市青葉区', region: 'tohoku', lat: 38.2601, lon: 140.8824, type: '新幹線駅', companies: ['JR東日本', '仙台市地下鉄', '仙台空港鉄道'], scale: '大規模', desc: '東北地方最大のターミナル。' },
+                { id: 'st_morioka', name: '盛岡', kana: 'もりおか', pref: '岩手県', city: '盛岡市', region: 'tohoku', lat: 39.7015, lon: 141.1362, type: '新幹線駅', companies: ['JR東日本', 'IGRいわて銀河鉄道'], scale: '中規模', desc: '北東北の交通の要衝。' },
+                { id: 'st_aomori', name: '青森', kana: 'あおもり', pref: '青森県', city: '青森市', region: 'tohoku', lat: 40.8293, lon: 140.7341, type: '主要駅', companies: ['JR東日本', '青い森鉄道'], scale: '中規模', desc: '本州最北端の主要駅。' },
+
+                // 関東
+                { id: 'st_tokyo', name: '東京', kana: 'とうきょう', pref: '東京都', city: '千代田区', region: 'kanto', lat: 35.6812, lon: 139.7671, type: 'ターミナル駅', companies: ['JR東日本', 'JR東海', '東京メトロ'], scale: '大規模', desc: '日本の鉄道網の中心となる巨大ターミナル。' },
+                { id: 'st_shinjuku', name: '新宿', kana: 'しんじゅく', pref: '東京都', city: '新宿区', region: 'kanto', lat: 35.6909, lon: 139.7003, type: 'ターミナル駅', companies: ['JR東日本', '京王電鉄', '小田急電鉄', '東京メトロ', '都営地下鉄'], scale: '大規模', desc: '乗降客数世界一の巨大ターミナル駅。' },
+                { id: 'st_yokohama', name: '横浜', kana: 'よこはま', pref: '神奈川県', city: '横浜市西区', region: 'kanto', lat: 35.4658, lon: 139.6223, type: 'ターミナル駅', companies: ['JR東日本', '東急電鉄', '京急電鉄', '相模鉄道', '横浜市営地下鉄', '横浜高速鉄道'], scale: '大規模', desc: '神奈川県最大のターミナル。' },
+                { id: 'st_omiya', name: '大宮', kana: 'おおみや', pref: '埼玉県', city: 'さいたま市大宮区', region: 'kanto', lat: 35.9063, lon: 139.6240, type: '新幹線駅', companies: ['JR東日本', '東武鉄道', '埼玉新都市交通'], scale: '大規模', desc: '関東と東日本を結ぶ結節点。' },
+                { id: 'st_chiba', name: '千葉', kana: 'ちば', pref: '千葉県', city: '千葉市中央区', region: 'kanto', lat: 35.6131, lon: 140.1136, type: '主要駅', companies: ['JR東日本', '千葉都市モノレール'], scale: '大規模', desc: '千葉県の中心駅。' },
+
+                // 中部
+                { id: 'st_nagoya', name: '名古屋', kana: 'なごや', pref: '愛知県', city: '名古屋市中村区', region: 'chubu', lat: 35.1709, lon: 136.8815, type: 'ターミナル駅', companies: ['JR東海', '名古屋鉄道', '近畿日本鉄道', '名古屋市営地下鉄', '名古屋臨海高速鉄道'], scale: '大規模', desc: '中京圏最大のターミナル。' },
+                { id: 'st_niigata', name: '新潟', kana: 'にいがた', pref: '新潟県', city: '新潟市中央区', region: 'chubu', lat: 37.9120, lon: 139.0618, type: '新幹線駅', companies: ['JR東日本'], scale: '中規模', desc: '日本海側最大級の駅。' },
+                { id: 'st_kanazawa', name: '金沢', kana: 'かなざわ', pref: '石川県', city: '金沢市', region: 'chubu', lat: 36.5780, lon: 136.6478, type: '新幹線駅', companies: ['JR西日本', 'IRいしかわ鉄道', '北陸鉄道'], scale: '中規模', desc: '北陸地方の拠点駅。' },
+                { id: 'st_shizuoka', name: '静岡', kana: 'しずおか', pref: '静岡県', city: '静岡市葵区', region: 'chubu', lat: 34.9717, lon: 138.3886, type: '新幹線駅', companies: ['JR東海', '静岡鉄道'], scale: '中規模', desc: '静岡県の中心駅。' },
+
+                // 近畿
+                { id: 'st_osaka', name: '大阪', kana: 'おおさか', pref: '大阪府', city: '大阪市北区', region: 'kinki', lat: 34.7024, lon: 135.4959, type: 'ターミナル駅', companies: ['JR西日本', '阪神電気鉄道', '阪急電鉄', '大阪メトロ'], scale: '大規模', desc: '西日本最大のターミナル（梅田駅など近接駅含む）。' },
+                { id: 'st_kyoto', name: '京都', kana: 'きょうと', pref: '京都府', city: '京都市下京区', region: 'kinki', lat: 34.9858, lon: 135.7587, type: 'ターミナル駅', companies: ['JR西日本', 'JR東海', '近畿日本鉄道', '京都市営地下鉄'], scale: '大規模', desc: '日本を代表する国際観光都市の玄関口。' },
+                { id: 'st_sannomiya', name: '三ノ宮', kana: 'さんのみや', pref: '兵庫県', city: '神戸市中央区', region: 'kinki', lat: 34.6943, lon: 135.1945, type: '主要駅', companies: ['JR西日本', '阪急電鉄', '阪神電気鉄道', '神戸新交通', '神戸市営地下鉄'], scale: '大規模', desc: '神戸市の中心駅。' },
+                { id: 'st_nara', name: '奈良', kana: 'なら', pref: '奈良県', city: '奈良市', region: 'kinki', lat: 34.6813, lon: 135.8188, type: '主要駅', companies: ['JR西日本'], scale: '中規模', desc: '古都・奈良の玄関口の一つ。' },
+
+                // 中国
+                { id: 'st_hiroshima', name: '広島', kana: 'ひろしま', pref: '広島県', city: '広島市南区', region: 'chugoku', lat: 34.3975, lon: 132.4753, type: '新幹線駅', companies: ['JR西日本', '広島電鉄'], scale: '大規模', desc: '中国地方最大の駅。' },
+                { id: 'st_okayama', name: '岡山', kana: 'おかやま', pref: '岡山県', city: '岡山市北区', region: 'chugoku', lat: 34.6662, lon: 133.9185, type: '新幹線駅', companies: ['JR西日本', '岡山電気軌道'], scale: '大規模', desc: '山陽・山陰・四国を結ぶ交通の要所。' },
+                { id: 'st_yonago', name: '米子', kana: 'よなご', pref: '鳥取県', city: '米子市', region: 'chugoku', lat: 35.4233, lon: 133.3297, type: '主要駅', companies: ['JR西日本'], scale: '中規模', desc: '山陰地方の主要な鉄道結節点。' },
+
+                // 四国
+                { id: 'st_takamatsu', name: '高松', kana: 'たかまつ', pref: '香川県', city: '高松市', region: 'shikoku', lat: 34.3498, lon: 134.0470, type: '主要駅', companies: ['JR四国', '高松琴平電気鉄道'], scale: '中規模', desc: '四国の玄関口。' },
+                { id: 'st_matsuyama', name: '松山', kana: 'まつやま', pref: '愛媛県', city: '松山市', region: 'shikoku', lat: 33.8400, lon: 132.7607, type: '主要駅', companies: ['JR四国', '伊予鉄道'], scale: '中規模', desc: '四国最大の人口を擁する都市の中心駅。' },
+                { id: 'st_tokushima', name: '徳島', kana: 'とくしま', pref: '徳島県', city: '徳島市', region: 'shikoku', lat: 34.0746, lon: 134.5518, type: '主要駅', companies: ['JR四国'], scale: '小規模', desc: '徳島県の中心駅。' },
+
+                // 九州
+                { id: 'st_hakata', name: '博多', kana: 'はかた', pref: '福岡県', city: '福岡市博多区', region: 'kyushu', lat: 33.5897, lon: 130.4207, type: 'ターミナル駅', companies: ['JR九州', 'JR西日本', '福岡市地下鉄'], scale: '大規模', desc: '九州最大のターミナル駅。' },
+                { id: 'st_kumamoto', name: '熊本', kana: 'くまもと', pref: '熊本県', city: '熊本市西区', region: 'kyushu', lat: 32.7898, lon: 130.6888, type: '新幹線駅', companies: ['JR九州', '熊本市交通局'], scale: '中規模', desc: '中九州の拠点駅。' },
+                { id: 'st_kagoshimachuo', name: '鹿児島中央', kana: 'かごしまちゅうおう', pref: '鹿児島県', city: '鹿児島市', region: 'kyushu', lat: 31.5839, lon: 130.5413, type: '新幹線駅', companies: ['JR九州', '鹿児島市交通局'], scale: '中規模', desc: '南九州の拠点駅。' },
+                { id: 'st_kokura', name: '小倉', kana: 'こくら', pref: '福岡県', city: '北九州市小倉北区', region: 'kyushu', lat: 33.8869, lon: 130.8824, type: '新幹線駅', companies: ['JR九州', 'JR西日本', '北九州高速鉄道'], scale: '大規模', desc: '本州と九州を結ぶ要衝。' }
             ]
         };
 
@@ -464,6 +582,10 @@
                 document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
                 if(navElem) navElem.classList.add('active');
                 if(window.innerWidth <= 768) this.toggleSidebar();
+                
+                if (id === 'view-stations') {
+                    Views.renderStations();
+                }
             },
             showModal(title, msg, contentHtml = null, btnsHtml = null) {
                 document.getElementById('modal-title').textContent = title;
@@ -590,7 +712,10 @@
                 // v0.1 から v0.1.1 への移行処理
                 if (data.version === "0.1") {
                     data.version = "0.1.1";
-                    // データ構造に変更がないため、バージョンの更新のみ行います。
+                }
+                // v0.1.1 から v0.1.2 への移行処理
+                if (data.version === "0.1.1") {
+                    data.version = "0.1.2";
                 }
                 return data;
             },
@@ -824,6 +949,129 @@
                     poly.setAttribute("stroke-linejoin", "round");
                     group.appendChild(poly);
                 });
+            }
+        };
+
+        // ==========================================
+        // Views / UI Renderers
+        // ==========================================
+        const Views = {
+            stationFilter: { keyword: '', pref: '', type: '', scale: '', company: '' },
+            isStationViewInit: false,
+
+            renderStations() {
+                if (!Player) return;
+                const region = GameData.REGIONS.find(r => r.id === Player.settings.region);
+                document.getElementById('st-region-name').textContent = region ? region.name : '未設定';
+
+                if (!this.isStationViewInit) {
+                    this.initStationFilters();
+                    this.isStationViewInit = true;
+                }
+                this.updateStationsList();
+            },
+
+            initStationFilters() {
+                const regionId = Player.settings.region;
+                const stations = GameData.STATION_MASTER.filter(s => s.region === regionId);
+                
+                const prefs = new Set();
+                const companies = new Set();
+                stations.forEach(s => {
+                    prefs.add(s.pref);
+                    s.companies.forEach(c => companies.add(c));
+                });
+
+                const prefSelect = document.getElementById('st-filter-pref');
+                prefSelect.innerHTML = '<option value="">全ての都道府県</option>';
+                prefs.forEach(p => { prefSelect.innerHTML += `<option value="${p}">${p}</option>`; });
+
+                const compSelect = document.getElementById('st-filter-company');
+                compSelect.innerHTML = '<option value="">全ての鉄道会社</option>';
+                companies.forEach(c => { compSelect.innerHTML += `<option value="${c}">${c}</option>`; });
+            },
+
+            updateStationsList() {
+                const regionId = Player.settings.region;
+                const f = this.stationFilter;
+                
+                let list = GameData.STATION_MASTER.filter(s => s.region === regionId);
+                
+                if (f.keyword) {
+                    const k = f.keyword.toLowerCase();
+                    list = list.filter(s => s.name.toLowerCase().includes(k) || s.kana.includes(k));
+                }
+                if (f.pref) list = list.filter(s => s.pref === f.pref);
+                if (f.type) list = list.filter(s => s.type === f.type);
+                if (f.scale) list = list.filter(s => s.scale === f.scale);
+                if (f.company) list = list.filter(s => s.companies.includes(f.company));
+
+                const tb = document.getElementById('st-table-body');
+                const mob = document.getElementById('st-cards-mobile');
+                tb.innerHTML = '';
+                mob.innerHTML = '';
+
+                if (list.length === 0) {
+                    tb.innerHTML = '<tr><td colspan="7" class="text-center text-muted">該当する駅が見つかりません。</td></tr>';
+                    mob.innerHTML = '<div class="text-center text-muted card"><div class="card-body">該当する駅が見つかりません。</div></div>';
+                    return;
+                }
+
+                list.forEach(s => {
+                    const compStr = s.companies.join(', ');
+                    // PC Table
+                    tb.innerHTML += `
+                        <tr>
+                            <td class="font-bold" style="color: var(--col-primary);">${s.name}</td>
+                            <td>${s.pref}</td>
+                            <td>${s.city}</td>
+                            <td>${s.type}</td>
+                            <td>${s.scale}</td>
+                            <td>${compStr}</td>
+                            <td><button class="btn btn-sm btn-outline" onclick="Views.showStationDetails('${s.id}')">詳細</button></td>
+                        </tr>
+                    `;
+                    // Mobile Card
+                    mob.innerHTML += `
+                        <div class="card">
+                            <div class="card-header" style="color: var(--col-primary);">${s.name} <span class="text-muted" style="font-size:0.8rem; font-weight:normal;">${s.kana}</span></div>
+                            <div class="card-body">
+                                <div><b>所在地:</b> ${s.pref}${s.city}</div>
+                                <div><b>種類/規模:</b> ${s.type} / ${s.scale}</div>
+                                <div><b>乗り入れ:</b> ${compStr}</div>
+                            </div>
+                            <div class="card-footer" style="margin-top:10px; text-align:right;">
+                                <button class="btn btn-sm btn-outline" onclick="Views.showStationDetails('${s.id}')">詳細</button>
+                            </div>
+                        </div>
+                    `;
+                });
+            },
+
+            showStationDetails(id) {
+                const s = GameData.STATION_MASTER.find(st => st.id === id);
+                if (!s) return;
+                
+                const html = `
+                    <div class="card"><div class="card-body">
+                        <div style="margin-bottom: 10px;">
+                            <span class="text-muted" style="font-size: 0.8rem;">${s.kana}</span><br>
+                            <span class="font-bold" style="font-size: 1.5rem; color: var(--col-primary);">${s.name} 駅</span>
+                        </div>
+                        <hr style="margin:10px 0; border:0; border-top:1px solid var(--panel-border);">
+                        <table style="width: 100%; font-size: 0.9rem; line-height: 1.8;">
+                            <tr><td style="width: 100px; color: var(--col-text-muted);">所在地</td><td>${s.pref} ${s.city}</td></tr>
+                            <tr><td style="color: var(--col-text-muted);">緯度・経度</td><td>${s.lat}, ${s.lon}</td></tr>
+                            <tr><td style="color: var(--col-text-muted);">駅の種類</td><td>${s.type}</td></tr>
+                            <tr><td style="color: var(--col-text-muted);">駅の規模</td><td>${s.scale}</td></tr>
+                            <tr><td style="color: var(--col-text-muted);">乗り入れ</td><td>${s.companies.join('<br>')}</td></tr>
+                        </table>
+                        <hr style="margin:10px 0; border:0; border-top:1px solid var(--panel-border);">
+                        <p class="text-muted" style="font-size: 0.85rem;">${s.desc}</p>
+                    </div></div>
+                `;
+                
+                UI.showModal('駅 詳細情報', '', html, '<button class="btn" onclick="UI.hideModal()">閉じる</button>');
             }
         };
 
