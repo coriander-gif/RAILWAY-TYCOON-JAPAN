@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>RAILWAY TYCOON JAPAN v0.1.1</title>
+    <title>RAILWAY TYCOON JAPAN v0.1.3</title>
     <style>
         /* ==========================================================================
            CSS Reset & Variables (Theme Support)
@@ -70,6 +70,10 @@
         .text-muted { color: var(--col-text-muted); }
         .font-bold { font-weight: bold; }
         
+        .badge { font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-block; }
+        .badge-success { background-color: rgba(16, 185, 129, 0.15); color: var(--col-success); border: 1px solid var(--col-success); }
+        .badge-warning { background-color: rgba(245, 158, 11, 0.15); color: var(--col-warning); border: 1px solid var(--col-warning); }
+
         .btn { background-color: var(--col-primary); color: white; border: none; padding: 10px 20px; font-size: 0.9rem; font-weight: bold; border-radius: 6px; cursor: pointer; transition: background-color 0.2s, transform 0.1s; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
         .btn:hover:not(:disabled) { background-color: var(--col-primary-hover); }
         .btn:active:not(:disabled) { transform: scale(0.98); }
@@ -147,6 +151,7 @@
         .card { background-color: var(--col-bg-panel); border: 1px solid var(--panel-border); border-radius: 8px; padding: 15px; box-shadow: 0 2px 4px var(--shadow-color); display: flex; flex-direction: column; }
         .card-header { font-weight: bold; font-size: 1.1rem; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--col-bg-dark); padding-bottom: 5px; }
         .card-body { font-size: 0.9rem; color: var(--col-text-main); flex: 1; line-height: 1.6; }
+        .card-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
         
         /* Table Responsive Container */
         .table-container { width: 100%; overflow-x: auto; }
@@ -213,11 +218,11 @@
             <button class="btn btn-outline" onclick="UI.showSettingsModal()">SETTINGS</button>
         </div>
         <div style="position: absolute; bottom: 20px; color: var(--col-text-muted); font-size: 0.8rem; text-align: center; line-height: 1.4;">
-            Version v0.1.2<br>駅データベースの基礎実装
+            Version v0.1.3<br>自社所有駅の取得・管理機能
         </div>
     </div>
 
-    <!-- Screen 2: New Game Setup (Region, Difficulty, Competitor) -->
+    <!-- Screen 2: New Game Setup -->
     <div id="screen-new-game-setup" class="screen hidden" style="justify-content: center; padding: 20px; overflow-y: auto;">
         <div class="form-container" style="margin-top: auto; margin-bottom: auto;">
             <h2 class="form-title">新規ゲーム設定</h2>
@@ -357,8 +362,15 @@
 
                 <!-- Stations View -->
                 <div id="view-stations" class="mgmt-panel">
-                    <div class="panel-header-title">STATIONS (駅情報データベース)</div>
-                    <div class="card" style="margin-bottom: 20px;">
+                    <div class="panel-header-title">STATIONS (駅の管理)</div>
+                    
+                    <div style="margin-bottom: 15px; display: flex; gap: 10px;">
+                        <button class="btn" id="tab-st-db" onclick="Views.switchStationTab('db')">駅データベース</button>
+                        <button class="btn btn-outline" id="tab-st-owned" onclick="Views.switchStationTab('owned')">自社所有駅</button>
+                    </div>
+
+                    <!-- Filter Area (Only for DB tab, dynamically hidden for Owned tab if needed, but left active for both for simplicity) -->
+                    <div class="card" style="margin-bottom: 20px;" id="st-filter-card">
                         <div class="card-body">
                             <p style="margin-bottom: 15px; font-size: 1.05rem;">現在の展開地域: <b id="st-region-name" style="color: var(--col-primary);">-</b></p>
                             
@@ -388,7 +400,7 @@
                                         <option value="小規模">小規模</option>
                                     </select>
                                 </div>
-                                <div class="input-group" style="flex: 1; min-width: 120px; margin-bottom: 0;">
+                                <div class="input-group" style="flex: 1; min-width: 120px; margin-bottom: 0;" id="st-filter-company-group">
                                     <select id="st-filter-company" class="input-field" onchange="Views.stationFilter.company=this.value; Views.updateStationsList();">
                                         <option value="">全ての鉄道会社</option>
                                     </select>
@@ -396,20 +408,15 @@
                             </div>
                         </div>
                     </div>
-                    <div class="text-muted" style="margin-bottom: 15px; font-size: 0.85rem;">※ここに表示されている駅はマスターデータであり、現在プレイヤーが所有している駅ではありません。将来のアップデートで駅を建設・取得する際に利用されます。</div>
+                    
+                    <div class="text-muted" style="margin-bottom: 15px; font-size: 0.85rem;" id="st-description-text">
+                        ※ここに表示されている駅はマスターデータです。詳細画面から「取得」を行うことで自社所有駅にできます。
+                    </div>
                     
                     <div class="card table-container" id="st-table-container">
                         <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>駅名</th>
-                                    <th>都道府県</th>
-                                    <th>市区町村</th>
-                                    <th>種類</th>
-                                    <th>規模</th>
-                                    <th>乗り入れ会社</th>
-                                    <th>操作</th>
-                                </tr>
+                            <thead id="st-table-head">
+                                <!-- JSで動的生成 -->
                             </thead>
                             <tbody id="st-table-body">
                             </tbody>
@@ -457,15 +464,26 @@
 
         <script>
         /**
-         * RAILWAY TYCOON JAPAN v0.1.2
-         * 基本システムの構築 (UI, Title, Setup, Save/Load, Day Advance) + 駅データベース
+         * RAILWAY TYCOON JAPAN v0.1.3
+         * 基本システムの構築 (UI, Title, Setup, Save/Load, Day Advance) 
+         * + 駅データベース
+         * + 駅取得機能 & 自社所有駅管理機能
          */
+
+        // ==========================================
+        // Utils
+        // ==========================================
+        const Utils = {
+            formatMoney: (n) => {
+                return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(n);
+            }
+        };
 
         // ==========================================
         // Game Static Data
         // ==========================================
         const GameData = {
-            VERSION: "0.1.2",
+            VERSION: "0.1.3",
             SAVE_KEY: "rtj_save_v01",
             START_DATE: "2025-04-01",
             
@@ -484,6 +502,11 @@
                 easy:   { name: 'かんたん', funds: 100000000000, desc: '初期資金が1,000億円付与されます。経営を拡大しやすい設定です。' },
                 normal: { name: '中くらい', funds: 50000000000,  desc: '初期資金が500億円付与されます。標準的な設定です。' },
                 hard:   { name: 'むずかしい', funds: 15000000000,  desc: '初期資金が150億円付与されます。厳しい資金繰りが求められます。' }
+            },
+
+            STATION_COSTS: {
+                scale: { '小規模': 300000000, '中規模': 1000000000, '大規模': 3000000000 },
+                typeMult: { '一般駅': 1.0, '主要駅': 1.2, 'ターミナル駅': 1.5, '新幹線駅': 2.0 }
             },
 
             // 簡易的な日本地図用のポリゴンデータ（描画用）
@@ -626,7 +649,7 @@
                 document.getElementById('hq-date').textContent = `${y}/${m}/${d}(${w[dateObj.getDay()]})`;
                 
                 // Format Money
-                document.getElementById('hq-funds').textContent = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(Player.company.funds);
+                document.getElementById('hq-funds').textContent = Utils.formatMoney(Player.company.funds);
                 
                 // Stats
                 document.getElementById('hq-stations').textContent = Player.stats.stations;
@@ -665,7 +688,9 @@
                     if (saved) {
                         const data = JSON.parse(saved);
                         let checkData = data;
-                        if (checkData.version === "0.1") checkData = this.migrateData(checkData);
+                        if (checkData.version === "0.1" || checkData.version === "0.1.1" || checkData.version === "0.1.2") {
+                            checkData = this.migrateData(checkData);
+                        }
                         
                         if (this.validateSaveData(checkData)) {
                             btnContinue.disabled = false;
@@ -709,13 +734,12 @@
             },
 
             migrateData(data) {
-                // v0.1 から v0.1.1 への移行処理
-                if (data.version === "0.1") {
-                    data.version = "0.1.1";
-                }
-                // v0.1.1 から v0.1.2 への移行処理
-                if (data.version === "0.1.1") {
-                    data.version = "0.1.2";
+                if (data.version === "0.1") data.version = "0.1.1";
+                if (data.version === "0.1.1") data.version = "0.1.2";
+                if (data.version === "0.1.2") {
+                    data.version = "0.1.3";
+                    if (!data.data.stations) data.data.stations = [];
+                    data.stats.stations = data.data.stations.length;
                 }
                 return data;
             },
@@ -838,13 +862,12 @@
                         difficulty: diffId,
                         hasCompetitor: hasComp
                     },
-                    // 将来の拡張用データ領域
                     data: {
-                        stations: [],
+                        stations: [], // 自社所有駅
                         tracks: [],
-                        routes: [], // 運行系統
+                        routes: [],
                         trains: [],
-                        competitors: [] // CPUデータ
+                        competitors: [] 
                     },
                     stats: {
                         stations: 0,
@@ -867,7 +890,7 @@
                     let data = JSON.parse(rawText);
                     
                     if (data.version !== GameData.VERSION) {
-                        if (data.version === "0.1") {
+                        if (data.version === "0.1" || data.version === "0.1.1" || data.version === "0.1.2") {
                             data = this.migrateData(data);
                         } else {
                             UI.showModal("ロードエラー", "対応していないバージョンのセーブデータです。");
@@ -956,8 +979,30 @@
         // Views / UI Renderers
         // ==========================================
         const Views = {
+            activeStationTab: 'db', // 'db' or 'owned'
             stationFilter: { keyword: '', pref: '', type: '', scale: '', company: '' },
             isStationViewInit: false,
+
+            switchStationTab(tab) {
+                this.activeStationTab = tab;
+                document.getElementById('tab-st-db').className = tab === 'db' ? 'btn' : 'btn btn-outline';
+                document.getElementById('tab-st-owned').className = tab === 'owned' ? 'btn' : 'btn btn-outline';
+                
+                document.getElementById('st-filter-company-group').style.display = tab === 'db' ? 'flex' : 'none';
+                document.getElementById('st-description-text').textContent = tab === 'db' 
+                    ? '※ここに表示されている駅はマスターデータです。詳細画面から「取得」を行うことで自社所有駅にできます。' 
+                    : '※自社が所有している駅の一覧です。路線の起点・終点や経由地として利用できます。';
+
+                // Change Table Header
+                const thead = document.getElementById('st-table-head');
+                if (tab === 'db') {
+                    thead.innerHTML = `<tr><th>駅名</th><th>都道府県</th><th>市区町村</th><th>種類</th><th>規模</th><th>乗り入れ会社</th><th>操作</th></tr>`;
+                } else {
+                    thead.innerHTML = `<tr><th>駅名</th><th>所在地</th><th>種類</th><th>規模</th><th>取得日</th><th>取得価格</th><th>状態</th><th>操作</th></tr>`;
+                }
+
+                this.updateStationsList();
+            },
 
             renderStations() {
                 if (!Player) return;
@@ -967,6 +1012,8 @@
                 if (!this.isStationViewInit) {
                     this.initStationFilters();
                     this.isStationViewInit = true;
+                    // Init header
+                    document.getElementById('st-table-head').innerHTML = `<tr><th>駅名</th><th>都道府県</th><th>市区町村</th><th>種類</th><th>規模</th><th>乗り入れ会社</th><th>操作</th></tr>`;
                 }
                 this.updateStationsList();
             },
@@ -995,63 +1042,138 @@
                 const regionId = Player.settings.region;
                 const f = this.stationFilter;
                 
-                let list = GameData.STATION_MASTER.filter(s => s.region === regionId);
-                
-                if (f.keyword) {
-                    const k = f.keyword.toLowerCase();
-                    list = list.filter(s => s.name.toLowerCase().includes(k) || s.kana.includes(k));
-                }
-                if (f.pref) list = list.filter(s => s.pref === f.pref);
-                if (f.type) list = list.filter(s => s.type === f.type);
-                if (f.scale) list = list.filter(s => s.scale === f.scale);
-                if (f.company) list = list.filter(s => s.companies.includes(f.company));
-
                 const tb = document.getElementById('st-table-body');
                 const mob = document.getElementById('st-cards-mobile');
                 tb.innerHTML = '';
                 mob.innerHTML = '';
 
-                if (list.length === 0) {
-                    tb.innerHTML = '<tr><td colspan="7" class="text-center text-muted">該当する駅が見つかりません。</td></tr>';
-                    mob.innerHTML = '<div class="text-center text-muted card"><div class="card-body">該当する駅が見つかりません。</div></div>';
-                    return;
-                }
+                let list = [];
+                if (this.activeStationTab === 'db') {
+                    // 駅マスターデータからの表示
+                    list = GameData.STATION_MASTER.filter(s => s.region === regionId);
+                    
+                    if (f.keyword) {
+                        const k = f.keyword.toLowerCase();
+                        list = list.filter(s => s.name.toLowerCase().includes(k) || s.kana.includes(k));
+                    }
+                    if (f.pref) list = list.filter(s => s.pref === f.pref);
+                    if (f.type) list = list.filter(s => s.type === f.type);
+                    if (f.scale) list = list.filter(s => s.scale === f.scale);
+                    if (f.company) list = list.filter(s => s.companies.includes(f.company));
 
-                list.forEach(s => {
-                    const compStr = s.companies.join(', ');
-                    // PC Table
-                    tb.innerHTML += `
-                        <tr>
-                            <td class="font-bold" style="color: var(--col-primary);">${s.name}</td>
-                            <td>${s.pref}</td>
-                            <td>${s.city}</td>
-                            <td>${s.type}</td>
-                            <td>${s.scale}</td>
-                            <td>${compStr}</td>
-                            <td><button class="btn btn-sm btn-outline" onclick="Views.showStationDetails('${s.id}')">詳細</button></td>
-                        </tr>
-                    `;
-                    // Mobile Card
-                    mob.innerHTML += `
-                        <div class="card">
-                            <div class="card-header" style="color: var(--col-primary);">${s.name} <span class="text-muted" style="font-size:0.8rem; font-weight:normal;">${s.kana}</span></div>
-                            <div class="card-body">
-                                <div><b>所在地:</b> ${s.pref}${s.city}</div>
-                                <div><b>種類/規模:</b> ${s.type} / ${s.scale}</div>
-                                <div><b>乗り入れ:</b> ${compStr}</div>
+                    if (list.length === 0) {
+                        tb.innerHTML = '<tr><td colspan="7" class="text-center text-muted">該当する駅が見つかりません。</td></tr>';
+                        mob.innerHTML = '<div class="text-center text-muted card"><div class="card-body">該当する駅が見つかりません。</div></div>';
+                        return;
+                    }
+
+                    list.forEach(s => {
+                        const compStr = s.companies.join(', ');
+                        const isOwned = Player.data.stations.some(ps => ps.masterId === s.id);
+                        const nameDisplay = isOwned ? `${s.name} <span class="badge badge-success" style="margin-left:5px;">取得済み</span>` : s.name;
+
+                        // PC Table
+                        tb.innerHTML += `
+                            <tr>
+                                <td class="font-bold" style="color: var(--col-primary);">${nameDisplay}</td>
+                                <td>${s.pref}</td>
+                                <td>${s.city}</td>
+                                <td>${s.type}</td>
+                                <td>${s.scale}</td>
+                                <td>${compStr}</td>
+                                <td><button class="btn btn-sm btn-outline" onclick="Views.showStationDetails('${s.id}')">詳細</button></td>
+                            </tr>
+                        `;
+                        // Mobile Card
+                        mob.innerHTML += `
+                            <div class="card">
+                                <div class="card-header" style="color: var(--col-primary);">${s.name} <span class="text-muted" style="font-size:0.8rem; font-weight:normal;">${s.kana}</span> ${isOwned ? '<span class="badge badge-success">取得済み</span>' : ''}</div>
+                                <div class="card-body">
+                                    <div><b>所在地:</b> ${s.pref}${s.city}</div>
+                                    <div><b>種類/規模:</b> ${s.type} / ${s.scale}</div>
+                                    <div><b>乗り入れ:</b> ${compStr}</div>
+                                </div>
+                                <div class="card-footer" style="margin-top:10px; text-align:right;">
+                                    <button class="btn btn-sm btn-outline" onclick="Views.showStationDetails('${s.id}')">詳細</button>
+                                </div>
                             </div>
-                            <div class="card-footer" style="margin-top:10px; text-align:right;">
-                                <button class="btn btn-sm btn-outline" onclick="Views.showStationDetails('${s.id}')">詳細</button>
+                        `;
+                    });
+
+                } else {
+                    // 自社所有駅の表示
+                    list = Player.data.stations;
+                    
+                    if (f.keyword) {
+                        const k = f.keyword.toLowerCase();
+                        list = list.filter(ps => ps.name.toLowerCase().includes(k) || GameData.STATION_MASTER.find(m=>m.id===ps.masterId).kana.includes(k));
+                    }
+                    if (f.pref) list = list.filter(ps => GameData.STATION_MASTER.find(m=>m.id===ps.masterId).pref === f.pref);
+                    if (f.type) list = list.filter(ps => GameData.STATION_MASTER.find(m=>m.id===ps.masterId).type === f.type);
+                    if (f.scale) list = list.filter(ps => GameData.STATION_MASTER.find(m=>m.id===ps.masterId).scale === f.scale);
+
+                    if (list.length === 0) {
+                        tb.innerHTML = '<tr><td colspan="8" class="text-center text-muted">所有している駅がありません。「駅データベース」タブから取得してください。</td></tr>';
+                        mob.innerHTML = '<div class="text-center text-muted card"><div class="card-body">所有している駅がありません。「駅データベース」タブから取得してください。</div></div>';
+                        return;
+                    }
+
+                    list.forEach(ps => {
+                        const master = GameData.STATION_MASTER.find(m => m.id === ps.masterId);
+                        if(!master) return;
+                        
+                        tb.innerHTML += `
+                            <tr>
+                                <td class="font-bold" style="color: var(--col-primary);">${ps.name}</td>
+                                <td>${master.pref}${master.city}</td>
+                                <td>${master.type}</td>
+                                <td>${master.scale}</td>
+                                <td>${ps.acquiredDate}</td>
+                                <td>${Utils.formatMoney(ps.acquiredPrice)}</td>
+                                <td><span class="badge badge-warning">${ps.status}</span></td>
+                                <td><button class="btn btn-sm btn-outline" onclick="Views.showOwnedStationDetails('${ps.id}')">詳細</button></td>
+                            </tr>
+                        `;
+                        mob.innerHTML += `
+                            <div class="card">
+                                <div class="card-header" style="color: var(--col-primary);">${ps.name} <span class="badge badge-warning" style="margin-left:auto;">${ps.status}</span></div>
+                                <div class="card-body">
+                                    <div><b>所在地:</b> ${master.pref}${master.city}</div>
+                                    <div><b>種類/規模:</b> ${master.type} / ${master.scale}</div>
+                                    <div><b>取得日:</b> ${ps.acquiredDate}</div>
+                                    <div><b>取得価格:</b> ${Utils.formatMoney(ps.acquiredPrice)}</div>
+                                </div>
+                                <div class="card-footer" style="margin-top:10px; text-align:right;">
+                                    <button class="btn btn-sm btn-outline" onclick="Views.showOwnedStationDetails('${ps.id}')">詳細</button>
+                                </div>
                             </div>
-                        </div>
-                    `;
-                });
+                        `;
+                    });
+                }
             },
 
             showStationDetails(id) {
                 const s = GameData.STATION_MASTER.find(st => st.id === id);
                 if (!s) return;
                 
+                const isOwned = Player.data.stations.some(ps => ps.masterId === s.id);
+                const cost = Logic.calculateStationCost(s);
+                const canAfford = Player.company.funds >= cost;
+
+                let actionHtml = '';
+                if (isOwned) {
+                    actionHtml = `<div class="badge badge-success" style="font-size: 1rem; padding: 8px 12px;">自社所有駅 (取得済み)</div>`;
+                } else {
+                    actionHtml = `
+                        <div style="background: var(--col-bg-dark); padding: 15px; border-radius: 8px; border: 1px solid var(--panel-border); text-align: center;">
+                            <div style="margin-bottom: 5px; font-size: 0.85rem; color: var(--col-text-muted);">駅取得費用</div>
+                            <div style="font-size: 1.5rem; font-weight: bold; color: var(--col-danger); margin-bottom: 15px;">${Utils.formatMoney(cost)}</div>
+                            <button class="btn" style="width: 100%; max-width: 250px;" onclick="Logic.confirmAcquireStation('${s.id}')" ${canAfford ? '' : 'disabled'}>この駅を取得する</button>
+                            ${!canAfford ? '<div class="text-danger" style="margin-top: 5px; font-size: 0.85rem; font-weight: bold;">資金が不足しています</div>' : ''}
+                        </div>
+                    `;
+                }
+
                 const html = `
                     <div class="card"><div class="card-body">
                         <div style="margin-bottom: 10px;">
@@ -1059,19 +1181,49 @@
                             <span class="font-bold" style="font-size: 1.5rem; color: var(--col-primary);">${s.name} 駅</span>
                         </div>
                         <hr style="margin:10px 0; border:0; border-top:1px solid var(--panel-border);">
-                        <table style="width: 100%; font-size: 0.9rem; line-height: 1.8;">
+                        <table style="width: 100%; font-size: 0.9rem; line-height: 1.8; margin-bottom: 15px;">
                             <tr><td style="width: 100px; color: var(--col-text-muted);">所在地</td><td>${s.pref} ${s.city}</td></tr>
                             <tr><td style="color: var(--col-text-muted);">緯度・経度</td><td>${s.lat}, ${s.lon}</td></tr>
                             <tr><td style="color: var(--col-text-muted);">駅の種類</td><td>${s.type}</td></tr>
                             <tr><td style="color: var(--col-text-muted);">駅の規模</td><td>${s.scale}</td></tr>
                             <tr><td style="color: var(--col-text-muted);">乗り入れ</td><td>${s.companies.join('<br>')}</td></tr>
                         </table>
-                        <hr style="margin:10px 0; border:0; border-top:1px solid var(--panel-border);">
-                        <p class="text-muted" style="font-size: 0.85rem;">${s.desc}</p>
+                        <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 20px;">${s.desc}</p>
+                        
+                        ${actionHtml}
                     </div></div>
                 `;
                 
-                UI.showModal('駅 詳細情報', '', html, '<button class="btn" onclick="UI.hideModal()">閉じる</button>');
+                UI.showModal('駅 詳細情報', '', html, '<button class="btn btn-outline" onclick="UI.hideModal()">閉じる</button>');
+            },
+
+            showOwnedStationDetails(ownedId) {
+                const ps = Player.data.stations.find(st => st.id === ownedId);
+                if (!ps) return;
+                const s = GameData.STATION_MASTER.find(st => st.id === ps.masterId);
+                
+                const html = `
+                    <div class="card"><div class="card-body">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                            <div>
+                                <span class="text-muted" style="font-size: 0.8rem;">${s.kana}</span><br>
+                                <span class="font-bold" style="font-size: 1.5rem; color: var(--col-primary);">${ps.name} 駅</span>
+                            </div>
+                            <span class="badge badge-warning" style="font-size: 1rem; padding: 8px 12px;">${ps.status}</span>
+                        </div>
+                        <hr style="margin:10px 0; border:0; border-top:1px solid var(--panel-border);">
+                        <table style="width: 100%; font-size: 0.9rem; line-height: 1.8; margin-bottom: 15px;">
+                            <tr><td style="width: 100px; color: var(--col-text-muted);">所在地</td><td>${s.pref} ${s.city}</td></tr>
+                            <tr><td style="color: var(--col-text-muted);">駅の種類</td><td>${s.type}</td></tr>
+                            <tr><td style="color: var(--col-text-muted);">駅の規模</td><td>${s.scale}</td></tr>
+                            <tr><td style="color: var(--col-text-muted);">取得日</td><td>${ps.acquiredDate}</td></tr>
+                            <tr><td style="color: var(--col-text-muted);">取得価格</td><td>${Utils.formatMoney(ps.acquiredPrice)}</td></tr>
+                        </table>
+                        <p class="text-muted" style="font-size: 0.85rem;">※この駅は現在どの路線とも接続されていません。今後のアップデートで線路を敷設し、路線を形成することが可能になります。</p>
+                    </div></div>
+                `;
+                
+                UI.showModal('自社所有駅 詳細', '', html, '<button class="btn btn-outline" onclick="UI.hideModal()">閉じる</button>');
             }
         };
 
@@ -1121,7 +1273,86 @@
 
             dailyCalculations() {
                 // v0.1ではスタブ（処理なし）
-                // 例: 車両の維持費引き落とし、路線の運賃計算など
+            },
+
+            // --- Station Acquisition Logic ---
+            calculateStationCost(station) {
+                const base = GameData.STATION_COSTS.scale[station.scale] || 300000000;
+                const mult = GameData.STATION_COSTS.typeMult[station.type] || 1.0;
+                return Math.floor(base * mult);
+            },
+
+            confirmAcquireStation(masterId) {
+                const s = GameData.STATION_MASTER.find(st => st.id === masterId);
+                if (!s) return;
+
+                const cost = this.calculateStationCost(s);
+                if (Player.company.funds < cost) {
+                    UI.showToast("資金が不足しています。", "error");
+                    return;
+                }
+
+                // Check double acquire
+                if (Player.data.stations.some(ps => ps.masterId === masterId)) {
+                    UI.showToast("既に取得済みの駅です。", "warning");
+                    return;
+                }
+
+                const afterFunds = Player.company.funds - cost;
+
+                const html = `
+                    <div class="card"><div class="card-body">
+                        <div class="card-row"><span>対象駅</span><span class="font-bold">${s.name}駅 (${s.pref})</span></div>
+                        <div class="card-row"><span>取得費用</span><span class="text-danger font-bold">-${Utils.formatMoney(cost)}</span></div>
+                        <hr style="margin:10px 0; border:0; border-top:1px dashed var(--panel-border);">
+                        <div class="card-row"><span>現在の資金</span><span>${Utils.formatMoney(Player.company.funds)}</span></div>
+                        <div class="card-row"><span>取得後の資金</span><span class="${afterFunds<0?'text-danger':'text-success'} font-bold">${Utils.formatMoney(afterFunds)}</span></div>
+                        <p class="text-muted" style="margin-top:15px; font-size:0.85rem;">この駅を自社所有駅として取得します。よろしいですか？</p>
+                    </div></div>
+                `;
+                
+                const btns = `
+                    <button class="btn btn-outline" onclick="UI.hideModal()">キャンセル</button>
+                    <button class="btn" onclick="Logic.acquireStation('${s.id}')">取得を確定する</button>
+                `;
+                
+                UI.showModal('駅の取得確認', '', html, btns);
+            },
+
+            acquireStation(masterId) {
+                const s = GameData.STATION_MASTER.find(st => st.id === masterId);
+                if (!s) return;
+
+                const cost = this.calculateStationCost(s);
+                
+                // Double check funds & existence
+                if (Player.company.funds < cost) return;
+                if (Player.data.stations.some(ps => ps.masterId === masterId)) return;
+
+                // Deduct funds
+                Player.company.funds -= cost;
+
+                // Create PlayerStation object
+                const ps = {
+                    id: 'ps_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+                    masterId: s.id,
+                    name: s.name,
+                    acquiredDate: Player.company.date,
+                    acquiredPrice: cost,
+                    status: '未接続',
+                    connectedTracks: []
+                };
+
+                // Add to array & update stat
+                Player.data.stations.push(ps);
+                Player.stats.stations = Player.data.stations.length;
+
+                UI.hideModal();
+                UI.updateHeader();
+                Views.updateStationsList(); // Will re-render either DB or Owned list based on current tab
+                Game.saveGame(true);
+                
+                UI.showToast(`${s.name}駅を取得しました！`, 'success');
             }
         };
 
