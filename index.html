@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>RAILWAY TYCOON JAPAN v0.1.3</title>
+    <title>RAILWAY TYCOON JAPAN v0.1.3.2</title>
     <style>
         /* ==========================================================================
            CSS Reset & Variables (Theme Support)
@@ -90,8 +90,12 @@
 
         /* Screens Layouts */
         .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; background-color: var(--col-bg-dark); z-index: 10; }
-        .theme-toggle { position: absolute; top: 20px; right: 20px; z-index: 50; background-color: var(--col-bg-panel); color: var(--col-text-main); border: 1px solid var(--panel-border); border-radius: 20px; padding: 8px 16px; font-size: 0.85rem; font-weight: bold; cursor: pointer; box-shadow: 0 2px 5px var(--shadow-color); display: flex; align-items: center; gap: 8px; transition: 0.2s; }
+        
+        /* Theme Toggle (Refactored for normal flow and absolute wrapper) */
+        .theme-toggle { background-color: var(--col-bg-panel); color: var(--col-text-main); border: 1px solid var(--panel-border); border-radius: 20px; padding: 8px 16px; font-size: 0.85rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; }
         .theme-toggle:hover { background-color: var(--col-bg-hover); }
+        #global-theme-toggle { position: absolute; top: 20px; right: 20px; z-index: 50; }
+        #global-theme-toggle .theme-toggle { box-shadow: 0 2px 5px var(--shadow-color); }
 
         /* Toast Notifications */
         #toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
@@ -119,7 +123,7 @@
 
         /* Main Headquarters Layout */
         #screen-hq { display: flex; flex-direction: column; }
-        .hq-header { background-color: var(--col-bg-panel); padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--panel-border); height: 65px; flex-shrink: 0; z-index: 25; padding-right: 150px; }
+        .hq-header { background-color: var(--col-bg-panel); padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--panel-border); min-height: 65px; flex-shrink: 0; z-index: 25; flex-wrap: wrap; gap: 10px; }
         .header-company { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 1.2rem; min-width: max-content; }
         #hq-company-logo { display: none; max-width: 108px; max-height: 34px; width: auto; height: auto; object-fit: contain; flex: 0 1 auto; }
         .brand-color-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--col-bg-panel); box-shadow: 0 0 2px var(--shadow-color);}
@@ -128,6 +132,8 @@
         .stat-item { display: flex; flex-direction: column; align-items: flex-end;}
         .stat-label { font-size: 0.65rem; color: var(--col-text-muted); }
         .stat-value { font-weight: bold; font-family: monospace; font-size: 1.05rem;}
+        
+        .header-stats-buttons { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
         .hq-body { display: flex; flex: 1; overflow: hidden; position: relative; }
         .hq-sidebar { width: 220px; background-color: var(--col-bg-panel); border-right: 1px solid var(--panel-border); display: flex; flex-direction: column; flex-shrink: 0; z-index: 20; }
@@ -171,12 +177,14 @@
         .company-logo-preview img { display: block; max-width: 180px; max-height: 90px; width: auto; height: auto; object-fit: contain; }
 
         @media (max-width: 768px) {
-            .hq-header { flex-wrap: wrap; height: auto; padding: 10px; padding-top: 60px; gap: 10px; padding-right: 10px; }
-            .header-stats { width: 100%; justify-content: flex-start; padding-right: 0; gap: 10px;}
+            .hq-header { flex-wrap: wrap; height: auto; padding: 10px; gap: 10px; }
+            .header-stats { width: 100%; justify-content: flex-start; gap: 10px;}
             .hq-sidebar { position: absolute; transform: translateX(-100%); transition: transform 0.3s; z-index: 30; height: 100%; box-shadow: 2px 0 10px var(--shadow-color); }
             .hq-sidebar.open { transform: translateX(0); }
             .mobile-menu-btn { display: block !important; background: none; border: none; color: var(--col-text-main); font-size: 1.5rem; margin-right: 10px;}
-            .theme-toggle { top: 10px; right: 10px; padding: 6px 12px; }
+            
+            #global-theme-toggle { top: 10px; right: 10px; }
+            .theme-toggle { padding: 6px 12px; }
             
             .table-container { display: none; }
             #st-cards-mobile { display: flex !important; }
@@ -186,11 +194,13 @@
 </head>
 <body>
 
-    <!-- Theme Toggle -->
-    <button class="theme-toggle" onclick="ThemeManager.toggleTheme()">
-        <span id="theme-icon">🌙</span>
-        <span id="theme-text">ダークモード</span>
-    </button>
+    <!-- Global Theme Toggle (For Title & Setup Screens) -->
+    <div id="global-theme-toggle">
+        <button class="theme-toggle" onclick="ThemeManager.toggleTheme()">
+            <span class="theme-icon">🌙</span>
+            <span class="theme-text">ダークモード</span>
+        </button>
+    </div>
 
     <!-- Toast Container -->
     <div id="toast-container"></div>
@@ -218,7 +228,7 @@
             <button class="btn btn-outline" onclick="UI.showSettingsModal()">SETTINGS</button>
         </div>
         <div style="position: absolute; bottom: 20px; color: var(--col-text-muted); font-size: 0.8rem; text-align: center; line-height: 1.4;">
-            Version v0.1.3.1<br>システム安定化アップデート
+            Version v0.1.3.2<br>システム安定化アップデート
         </div>
     </div>
 
@@ -323,8 +333,13 @@
                 <div class="stat-item"><span class="stat-label">保有資金</span><span class="stat-value text-success" id="hq-funds">-</span></div>
                 <div class="stat-item"><span class="stat-label">駅/路線/車両</span><span class="stat-value"><span id="hq-stations">0</span> / <span id="hq-routes">0</span> / <span id="hq-trains">0</span></span></div>
                 
-                <div>
+                <div class="header-stats-buttons">
                     <button class="btn" style="padding: 6px 15px;" onclick="Logic.advanceDay()" id="btn-next-day">NEXT DAY ➔</button>
+                    <!-- In-header Theme Toggle (replaces absolute one for this screen) -->
+                    <button class="theme-toggle" onclick="ThemeManager.toggleTheme()" style="padding: 6px 12px; box-shadow: none;">
+                        <span class="theme-icon">🌙</span>
+                        <span class="theme-text">ダークモード</span>
+                    </button>
                 </div>
             </div>
         </header>
@@ -369,7 +384,7 @@
                         <button class="btn btn-outline" id="tab-st-owned" onclick="Views.switchStationTab('owned')">自社所有駅</button>
                     </div>
 
-                    <!-- Filter Area (Only for DB tab, dynamically hidden for Owned tab if needed, but left active for both for simplicity) -->
+                    <!-- Filter Area -->
                     <div class="card" style="margin-bottom: 20px;" id="st-filter-card">
                         <div class="card-body">
                             <p style="margin-bottom: 15px; font-size: 1.05rem;">現在の展開地域: <b id="st-region-name" style="color: var(--col-primary);">-</b></p>
@@ -462,12 +477,13 @@
         </div>
     </div>
 
-        <script>
+    <script>
         /**
-         * RAILWAY TYCOON JAPAN v0.1.3
+         * RAILWAY TYCOON JAPAN v0.1.3.2
          * 基本システムの構築 (UI, Title, Setup, Save/Load, Day Advance) 
          * + 駅データベース
          * + 駅取得機能 & 自社所有駅管理機能
+         * + v0.1.3.2 安定化修正 (互換性・バリデーション強化・レイアウト改善)
          */
 
         // ==========================================
@@ -483,7 +499,7 @@
         // Game Static Data
         // ==========================================
         const GameData = {
-            VERSION: "0.1.3.1",
+            VERSION: "0.1.3.2",
             SAVE_KEY: "rtj_save_v01",
             START_DATE: "2025-04-01",
             
@@ -583,13 +599,20 @@
             toggleTheme() { this.setTheme(this.current === "light" ? "dark" : "light"); },
             setTheme(theme) {
                 this.current = theme;
-                if (theme === "dark") {
+                const isDark = theme === "dark";
+                if (isDark) {
                     document.body.setAttribute('data-theme', 'dark');
-                    document.getElementById('theme-icon').textContent = '☀️'; document.getElementById('theme-text').textContent = 'ライト';
                 } else {
                     document.body.removeAttribute('data-theme');
-                    document.getElementById('theme-icon').textContent = '🌙'; document.getElementById('theme-text').textContent = 'ダーク';
                 }
+                
+                document.querySelectorAll('.theme-icon').forEach(e => {
+                    e.textContent = isDark ? '☀️' : '🌙';
+                });
+                document.querySelectorAll('.theme-text').forEach(e => {
+                    e.textContent = isDark ? 'ライト' : 'ダーク';
+                });
+                
                 try { localStorage.setItem(this.THEME_KEY, theme); } catch(e){}
             }
         };
@@ -598,6 +621,15 @@
             switchScreen(id) { 
                 document.querySelectorAll('.screen').forEach(e => e.classList.add('hidden')); 
                 document.getElementById(id).classList.remove('hidden'); 
+                
+                const globalToggle = document.getElementById('global-theme-toggle');
+                if (globalToggle) {
+                    if (id === 'screen-hq') {
+                        globalToggle.classList.add('hidden');
+                    } else {
+                        globalToggle.classList.remove('hidden');
+                    }
+                }
             },
             switchMainView(id, navElem) {
                 document.querySelectorAll('.mgmt-panel').forEach(e => e.classList.remove('active'));
@@ -607,6 +639,7 @@
                 if(window.innerWidth <= 768) this.toggleSidebar();
                 
                 if (id === 'view-stations') {
+                    Views.resetStationFilters();
                     Views.renderStations();
                 }
             },
@@ -688,7 +721,9 @@
                     if (saved) {
                         const data = JSON.parse(saved);
                         let checkData = data;
-                        if (checkData.version === "0.1" || checkData.version === "0.1.1" || checkData.version === "0.1.2") {
+                        
+                        const validVersions = ["0.1", "0.1.1", "0.1.2", "0.1.3", "0.1.3.1", "0.1.3.2"];
+                        if (validVersions.includes(checkData.version)) {
                             checkData = this.migrateData(checkData);
                         }
                         
@@ -743,6 +778,9 @@
                 }
                 if (data.version === "0.1.3") {
                     data.version = "0.1.3.1";
+                }
+                if (data.version === "0.1.3.1") {
+                    data.version = "0.1.3.2";
                 }
                 return data;
             },
@@ -883,9 +921,8 @@
                 document.getElementById('map-region-name').textContent = `展開地域: ${region.name}`;
                 
                 // 検索フィルター・タブを初期化
-                Views.isStationViewInit = false;
+                Views.resetStationFilters();
                 Views.activeStationTab = 'db';
-                Views.stationFilter = { keyword: '', pref: '', type: '', scale: '', company: '' };
 
                 this.saveGame(false);
                 UI.showToast("新会社を設立しました！", "success");
@@ -898,14 +935,12 @@
                     if (!rawText) return;
                     let data = JSON.parse(rawText);
                     
-                    if (data.version !== GameData.VERSION) {
-                        if (data.version === "0.1" || data.version === "0.1.1" || data.version === "0.1.2") {
-                            data = this.migrateData(data);
-                        } else {
-                            UI.showModal("ロードエラー", "対応していないバージョンのセーブデータです。");
-                            return;
-                        }
+                    const validVersions = ["0.1", "0.1.1", "0.1.2", "0.1.3", "0.1.3.1", "0.1.3.2"];
+                    if (!validVersions.includes(data.version)) {
+                        UI.showModal("ロードエラー", "対応していないバージョンのセーブデータです。");
+                        return;
                     }
+                    data = this.migrateData(data);
                     
                     if (!this.validateSaveData(data)) {
                         UI.showModal("ロードエラー", "セーブデータが破損しているか、必須項目が不足しています。");
@@ -914,22 +949,49 @@
                     
                     Player = data;
 
-                    // --- 所有駅データの検証・クリーンアップ (v0.1.3.1 追加) ---
+                    // --- 所有駅データの検証・クリーンアップ (v0.1.3.2 強化版) ---
                     let hasInvalidStation = false;
-                    const seen = new Set();
+                    const seenIds = new Set();
+                    const seenMasterIds = new Set();
+                    const validStatuses = ['未接続'];
+
                     Player.data.stations = Player.data.stations.filter(ps => {
-                        if (!ps || typeof ps.id !== 'string' || typeof ps.masterId !== 'string' || typeof ps.name !== 'string') { hasInvalidStation = true; return false; }
-                        if (typeof ps.acquiredPrice !== 'number' || !isFinite(ps.acquiredPrice) || ps.acquiredPrice < 0) { hasInvalidStation = true; return false; }
-                        if (typeof ps.status !== 'string' || !Array.isArray(ps.connectedTracks)) { hasInvalidStation = true; return false; }
-                        
-                        const master = GameData.STATION_MASTER.find(m => m.id === ps.masterId);
-                        if (!master) { hasInvalidStation = true; return false; }
-                        
-                        // 重複所有の排除
-                        if (seen.has(ps.masterId)) { hasInvalidStation = true; return false; }
-                        seen.add(ps.masterId);
-                        
-                        return true;
+                        try {
+                            if (!ps || typeof ps !== 'object') throw new Error("Station entry is not an object");
+                            if (typeof ps.id !== 'string' || ps.id.trim() === '') throw new Error(`Invalid id`);
+                            if (typeof ps.masterId !== 'string') throw new Error(`Invalid masterId`);
+                            if (typeof ps.name !== 'string' || ps.name.trim() === '') throw new Error(`Invalid name`);
+                            if (typeof ps.acquiredDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(ps.acquiredDate)) throw new Error(`Invalid acquiredDate: ${ps.acquiredDate}`);
+                            
+                            // Check date validity
+                            const dParts = ps.acquiredDate.split('-');
+                            const dObj = new Date(dParts[0], dParts[1]-1, dParts[2]);
+                            if (dObj.getFullYear() != dParts[0] || (dObj.getMonth()+1) != dParts[1] || dObj.getDate() != dParts[2]) {
+                                throw new Error(`Invalid date format (non-existent date): ${ps.acquiredDate}`);
+                            }
+
+                            if (typeof ps.acquiredPrice !== 'number' || !isFinite(ps.acquiredPrice) || ps.acquiredPrice < 0) throw new Error(`Invalid acquiredPrice: ${ps.acquiredPrice}`);
+                            if (!validStatuses.includes(ps.status)) throw new Error(`Invalid status: ${ps.status}`);
+                            if (!Array.isArray(ps.connectedTracks)) throw new Error("connectedTracks is not array");
+                            
+                            const master = GameData.STATION_MASTER.find(m => m.id === ps.masterId);
+                            if (!master) throw new Error(`Master station not found for masterId: ${ps.masterId}`);
+                            
+                            if (master.region !== Player.settings.region) throw new Error(`Region mismatch for station ${ps.name}`);
+                            
+                            // 重複所有の排除
+                            if (seenIds.has(ps.id)) throw new Error(`Duplicate id: ${ps.id}`);
+                            if (seenMasterIds.has(ps.masterId)) throw new Error(`Duplicate masterId: ${ps.masterId}`);
+                            
+                            seenIds.add(ps.id);
+                            seenMasterIds.add(ps.masterId);
+                            
+                            return true;
+                        } catch (e) {
+                            console.warn("不正な駅データを検出したため除外しました:", e.message, ps);
+                            hasInvalidStation = true;
+                            return false;
+                        }
                     });
                     
                     if (Player.stats.stations !== Player.data.stations.length) {
@@ -938,7 +1000,6 @@
                     }
                     
                     if (hasInvalidStation) {
-                        console.warn("不正な駅データ、または重複データを除外しました。");
                         UI.showToast("一部の駅データに不整合があったため修正しました。", "warning");
                     }
                     // ---
@@ -947,9 +1008,8 @@
                     document.getElementById('map-region-name').textContent = `展開地域: ${region ? region.name : '不明'}`;
                     
                     // 検索フィルター・タブを初期化
-                    Views.isStationViewInit = false;
+                    Views.resetStationFilters();
                     Views.activeStationTab = 'db';
-                    Views.stationFilter = { keyword: '', pref: '', type: '', scale: '', company: '' };
 
                     this.enterHQ();
                     UI.showToast("データを読み込みました", "success");
@@ -989,7 +1049,7 @@
                 UI.switchScreen('screen-title');
             },
             
-            // 地図描画ロジック（AIRLINE TYCOON流用）
+            // 地図描画ロジック
             drawMap() {
                 const group = document.getElementById('map-outline');
                 group.innerHTML = '';
@@ -1027,7 +1087,20 @@
             stationFilter: { keyword: '', pref: '', type: '', scale: '', company: '' },
             isStationViewInit: false,
 
+            resetStationFilters() {
+                this.stationFilter = { keyword: '', pref: '', type: '', scale: '', company: '' };
+                const elName = document.getElementById('st-search-name'); if(elName) elName.value = '';
+                const elPref = document.getElementById('st-filter-pref'); if(elPref) elPref.value = '';
+                const elType = document.getElementById('st-filter-type'); if(elType) elType.value = '';
+                const elScale = document.getElementById('st-filter-scale'); if(elScale) elScale.value = '';
+                const elCompany = document.getElementById('st-filter-company'); if(elCompany) elCompany.value = '';
+                this.isStationViewInit = false;
+            },
+
             switchStationTab(tab) {
+                if (this.activeStationTab !== tab) {
+                    this.resetStationFilters();
+                }
                 this.activeStationTab = tab;
                 document.getElementById('tab-st-db').className = tab === 'db' ? 'btn' : 'btn btn-outline';
                 document.getElementById('tab-st-owned').className = tab === 'owned' ? 'btn' : 'btn btn-outline';
