@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>RAILWAY TYCOON JAPAN v0.1.3.2</title>
+    <title>RAILWAY TYCOON JAPAN v0.1.3.3</title>
     <style>
         /* ==========================================================================
            CSS Reset & Variables (Theme Support)
@@ -91,7 +91,7 @@
         /* Screens Layouts */
         .screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; background-color: var(--col-bg-dark); z-index: 10; }
         
-        /* Theme Toggle (Refactored for normal flow and absolute wrapper) */
+        /* Theme Toggle */
         .theme-toggle { background-color: var(--col-bg-panel); color: var(--col-text-main); border: 1px solid var(--panel-border); border-radius: 20px; padding: 8px 16px; font-size: 0.85rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; }
         .theme-toggle:hover { background-color: var(--col-bg-hover); }
         #global-theme-toggle { position: absolute; top: 20px; right: 20px; z-index: 50; }
@@ -228,7 +228,7 @@
             <button class="btn btn-outline" onclick="UI.showSettingsModal()">SETTINGS</button>
         </div>
         <div style="position: absolute; bottom: 20px; color: var(--col-text-muted); font-size: 0.8rem; text-align: center; line-height: 1.4;">
-            Version v0.1.3.2<br>システム安定化アップデート
+            Version v0.1.3.3<br>システム安定化アップデート
         </div>
     </div>
 
@@ -479,11 +479,11 @@
 
     <script>
         /**
-         * RAILWAY TYCOON JAPAN v0.1.3.2
+         * RAILWAY TYCOON JAPAN v0.1.3.3
          * 基本システムの構築 (UI, Title, Setup, Save/Load, Day Advance) 
          * + 駅データベース
          * + 駅取得機能 & 自社所有駅管理機能
-         * + v0.1.3.2 安定化修正 (互換性・バリデーション強化・レイアウト改善)
+         * + v0.1.3.3 安定化修正 (互換性・バリデーション強化・セーブデータ修正保存)
          */
 
         // ==========================================
@@ -499,8 +499,8 @@
         // Game Static Data
         // ==========================================
         const GameData = {
-            VERSION: "0.1.3.2",
-            VALID_VERSIONS: ["0.1", "0.1.1", "0.1.2", "0.1.3", "0.1.3.1", "0.1.3.2"],
+            VERSION: "0.1.3.3",
+            VALID_VERSIONS: ["0.1", "0.1.1", "0.1.2", "0.1.3", "0.1.3.1", "0.1.3.2", "0.1.3.3"],
             SAVE_KEY: "rtj_save_v01",
             START_DATE: "2025-04-01",
             
@@ -784,6 +784,9 @@
                 if (data.version === "0.1.3.1") {
                     data.version = "0.1.3.2";
                 }
+                if (data.version === "0.1.3.2") {
+                    data.version = "0.1.3.3";
+                }
                 return data;
             },
 
@@ -941,6 +944,8 @@
                         UI.showModal("ロードエラー", "対応していないバージョンのセーブデータです。");
                         return;
                     }
+                    
+                    const originalVersion = data.version;
                     data = this.migrateData(data);
                     
                     if (!this.validateSaveData(data)) {
@@ -950,7 +955,7 @@
                     
                     Player = data;
 
-                    // --- 所有駅データの検証・クリーンアップ (v0.1.3.2 強化版) ---
+                    // --- 所有駅データの検証・クリーンアップ ---
                     let hasInvalidStation = false;
                     const seenIds = new Set();
                     const seenMasterIds = new Set();
@@ -974,6 +979,16 @@
                             if (typeof ps.acquiredPrice !== 'number' || !isFinite(ps.acquiredPrice) || ps.acquiredPrice < 0) throw new Error(`Invalid acquiredPrice: ${ps.acquiredPrice}`);
                             if (!validStatuses.includes(ps.status)) throw new Error(`Invalid status: ${ps.status}`);
                             if (!Array.isArray(ps.connectedTracks)) throw new Error("connectedTracks is not array");
+                            
+                            // connectedTracksの厳密な検証
+                            const trackSet = new Set();
+                            for (let t of ps.connectedTracks) {
+                                if (typeof t !== 'string') throw new Error(`connectedTracks contains invalid type: ${typeof t}`);
+                                if (t === '') throw new Error(`connectedTracks contains empty string`);
+                                if (t !== t.trim()) throw new Error(`connectedTracks contains leading/trailing spaces: "${t}"`);
+                                if (trackSet.has(t)) throw new Error(`connectedTracks contains duplicate id: ${t}`);
+                                trackSet.add(t);
+                            }
                             
                             const master = GameData.STATION_MASTER.find(m => m.id === ps.masterId);
                             if (!master) throw new Error(`Master station not found for masterId: ${ps.masterId}`);
@@ -1002,8 +1017,23 @@
                         hasInvalidStation = true;
                     }
                     
+                    let needSave = false;
                     if (hasInvalidStation) {
-                        UI.showToast("一部の駅データに不整合があったため修正しました。", "warning");
+                        UI.showToast("セーブデータの不整合を検出したため、一部のデータを修復しました。", "warning");
+                        needSave = true;
+                    } else if (originalVersion !== GameData.VERSION) {
+                        needSave = true;
+                    }
+                    
+                    if (needSave) {
+                        const saveSuccess = this.saveGame(false);
+                        if (hasInvalidStation) {
+                            if (saveSuccess) {
+                                setTimeout(() => UI.showToast("修復したセーブデータを保存しました。", "success"), 1500);
+                            } else {
+                                setTimeout(() => UI.showToast("修復したデータの保存に失敗しました。ブラウザの保存容量や設定を確認してください。", "error"), 1500);
+                            }
+                        }
                     }
                     // ---
                     
@@ -1015,7 +1045,9 @@
                     Views.activeStationTab = 'db';
 
                     this.enterHQ();
-                    UI.showToast("データを読み込みました", "success");
+                    if (!hasInvalidStation) {
+                        UI.showToast("データを読み込みました", "success");
+                    }
                 } catch(e) {
                     console.error(e);
                     UI.showModal("ロードエラー", "セーブデータの解析に失敗しました。データが破損している可能性があります。");
