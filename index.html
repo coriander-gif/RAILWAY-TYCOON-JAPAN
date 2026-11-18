@@ -1607,7 +1607,217 @@
                 const m2 = GameData.STATION_MASTER.find(m => m.id === ps2.masterId);
 
                 const dist = Logic.calculateDistance(m1.lat, m1.lon, m2.lat, m2.lon);
+                
+                if (dist <= 0 || !isFinite(dist)) {
+                    preview.innerHTML = `<div class="text-danger font-bold text-center">距離の計算に失敗しました。</div>`;
+                    preview.style.display = 'block';
+                    return;
+                }
+                
                 const cost = Logic.calculateRouteCost(dist, m1, m2);
+
+                if (Player.company.funds < cost) {
+                    preview.innerHTML = `
+                        <div class="text-danger font-bold text-center">資金が不足しています。</div>
+                        <div class="text-center text-muted" style="font-size: 0.85rem; margin-top: 5px;">推定費用: ${Utils.formatMoney(cost)}</div>
+                    `;
+                    preview.style.display = 'block';
+                    return;
+                }
+
+                preview.innerHTML = `
+                    <div class="text-center">
+                        <div style="font-size: 0.9rem; color: var(--col-text-muted);">推定距離: <span class="font-bold text-main" style="color: var(--col-text-main);">${dist.toFixed(1)} km</span></div>
+                        <div style="font-size: 0.9rem; color: var(--col-text-muted);">推定費用: <span class="font-bold text-danger">${Utils.formatMoney(cost)}</span></div>
+                    </div>
+                `;
+                preview.style.display = 'block';
+                btn.disabled = false;
+            }
+        };
+
+        // ==========================================
+        // Core Logic
+        // ==========================================
+        const Logic = {
+            isAdvancing: false,
+            
+            advanceDay() {
+                if(this.isAdvancing || !Player) return;
+                this.isAdvancing = true;
+                const btn = document.getElementById('btn-next-day');
+                if(btn) btn.disabled = true;
+
+                try {
+                    const [y, m, d] = Player.company.date.split('-').map(Number);
+                    let dateObj = new Date(y, m - 1, d);
+                    dateObj.setDate(dateObj.getDate() + 1);
+                    
+                    const nextY = dateObj.getFullYear();
+                    const nextM = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    const nextD = String(dateObj.getDate()).padStart(2, '0');
+                    
+                    Player.company.date = `${nextY}-${nextM}-${nextD}`;
+
+                    this.dailyCalculations();
+                    UI.updateHeader();
+                    Game.saveGame(false);
+                } catch (e) {
+                    console.error("Advance Day Error", e);
+                    UI.showModal("処理エラー", "日次処理中に予期せぬエラーが発生しました。");
+                } finally {
+                    setTimeout(() => {
+                        this.isAdvancing = false;
+                        if(btn) btn.disabled = false;
+                    }, 150);
+                }
+            },
+
+            dailyCalculations() {
+            },
+
+            calculateStationCost(station) {
+                const base = GameData.STATION_COSTS.scale[station.scale] || 300000000;
+                const mult = GameData.STATION_COSTS.typeMult[station.type] || 1.0;
+                return Math.floor(base * mult);
+            },
+
+            confirmAcquireStation(masterId) {
+                const s = GameData.STATION_MASTER.find(st => st.id === masterId);
+                if (!s) return;
+
+                const cost = this.calculateStationCost(s);
+                if (Player.company.funds < cost) {
+                    UI.showToast("資金が不足しています。", "error");
+                    return;
+                }
+
+                if (Player.data.stations.some(ps => ps.masterId === masterId)) {
+                    UI.showToast("既に取得済みの駅です。", "warning");
+                    return;
+                }
+
+                const afterFunds = Player.company.funds - cost;
+
+                const html = `
+                    <div class="card"><div class="card-body">
+                        <div class="card-row"><span>対象駅</span><span class="font-bold">${s.name}駅 (${s.pref})</span></div>
+                        <div class="card-row"><span>取得費用</span><span class="text-danger font-bold">-${Utils.formatMoney(cost)}</span></div>
+                        <hr style="margin:10px 0; border:0; border-top:1px dashed var(--panel-border);">
+                        <div class="card-row"><span>現在の資金</span><span>${Utils.formatMoney(Player.company.funds)}</span></div>
+                        <div class="card-row"><span>取得後の資金</span><span class="${afterFunds<0?'text-danger':'text-success'} font-bold">${Utils.formatMoney(afterFunds)}</span></div>
+                        <p class="text-muted" style="margin-top:15px; font-size:0.85rem;">この駅を自社所有駅として取得します。よろしいですか？</p>
+                    </div></div>
+                `;
+                
+                const btns = `
+                    <button class="btn btn-outline" onclick="UI.hideModal()">キャンセル</button>
+                    <button class="btn" onclick="Logic.acquireStation('${s.id}')">取得を確定する</button>
+                `;
+                
+                UI.showModal('駅の取得確認', '', html, btns);
+            },
+
+            acquireStation(masterId) {
+                const s = GameData.STATION_MASTER.find(st => st.id === masterId);
+                if (!s) return;
+
+                if (s.region !== Player.settings.region) {
+                    UI.showToast("選択した展開地域外の駅は取得できません。", "error");
+                    return;
+                }
+
+                const cost = this.calculateStationCost(s);
+                
+                if (Player.company.funds < cost) {
+                    UI.showToast("資金が不足しています。", "error");
+                    return;
+                }
+                if (Player.data.stations.some(ps => ps.masterId === masterId)) {
+                    UI.showToast("既に取得済みの駅です。", "warning");
+                    return;
+                }
+
+                const originalFunds = Player.company.funds;
+                const originalStations = [...Player.data.stations];
+                const originalStat = Player.stats.stations;
+
+                Player.company.funds -= cost;
+
+                const ps = {
+                    id: 'ps_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+                    masterId: s.id,
+                    name: s.name,
+                    acquiredDate: Player.company.date,
+                    acquiredPrice: cost,
+                    status: '未接続',
+                    connectedTracks: []
+                };
+
+                Player.data.stations.push(ps);
+                Player.stats.stations = Player.data.stations.length;
+
+                const saveSuccess = Game.saveGame(false);
+
+                if (saveSuccess) {
+                    UI.hideModal();
+                    UI.updateHeader();
+                    Views.updateStationsList();
+                    Game.drawMap();
+                    UI.showToast(`${s.name}駅を取得しました！`, 'success');
+                } else {
+                    Player.company.funds = originalFunds;
+                    Player.data.stations = originalStations;
+                    Player.stats.stations = originalStat;
+                    
+                    UI.hideModal();
+                    UI.showToast("データの保存に失敗したため、駅の取得をキャンセルしました。", "error");
+                }
+            },
+
+            calculateDistance(lat1, lon1, lat2, lon2) {
+                const R = 6371; // km
+                const dLat = (lat2 - lat1) * Math.PI / 180;
+                const dLon = (lon2 - lon1) * Math.PI / 180;
+                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                          Math.sin(dLon/2) * Math.sin(dLon/2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                const dist = R * c;
+                return dist > 0 ? dist : 0;
+            },
+
+            calculateRouteCost(dist, m1, m2) {
+                const basePerKm = 500000000;
+                const getScaleMult = (scale) => {
+                    if (scale === '大規模') return 1.5;
+                    if (scale === '中規模') return 1.2;
+                    return 1.0;
+                };
+                const mult = (getScaleMult(m1.scale) + getScaleMult(m2.scale)) / 2;
+                return Math.floor(dist * basePerKm * mult);
+            },
+
+            confirmBuildRoute() {
+                const id1 = document.getElementById('route-st1').value;
+                const id2 = document.getElementById('route-st2').value;
+                
+                if (!id1 || !id2 || id1 === id2) return;
+
+                const ps1 = Player.data.stations.find(s => s.id === id1);
+                const ps2 = Player.data.stations.find(s => s.id === id2);
+                if (!ps1 || !ps2) return;
+
+                const m1 = GameData.STATION_MASTER.find(m => m.id === ps1.masterId);
+                const m2 = GameData.STATION_MASTER.find(m => m.id === ps2.masterId);
+                
+                const dist = this.calculateDistance(m1.lat, m1.lon, m2.lat, m2.lon);
+                if (dist <= 0 || !isFinite(dist)) {
+                    UI.showToast("距離の計算に失敗しました。", "error");
+                    return;
+                }
+                
+                const cost = this.calculateRouteCost(dist, m1, m2);
 
                 if (Player.company.funds < cost) {
                     UI.showToast("資金が不足しています。", "error");
@@ -1677,7 +1887,8 @@
                 }
                 
                 if (Math.abs(realCost - cost) > 1 || Math.abs(realDist - dist) > 0.1) {
-                    UI.showToast("計算結果に不整合が発生しました。再度お試しください。", "error");
+                    UI.showToast("計算結果が更新されました。再度確認画面をご確認ください。", "warning");
+                    this.confirmBuildRoute();
                     return;
                 }
 
