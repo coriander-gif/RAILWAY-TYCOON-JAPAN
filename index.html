@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>RAILWAY TYCOON JAPAN v0.1.3.3</title>
+    <title>RAILWAY TYCOON JAPAN v0.1.4</title>
     <style>
         /* ==========================================================================
            CSS Reset & Variables (Theme Support)
@@ -15,7 +15,7 @@
             --col-bg-hover: #e2e8f0;
             --col-text-main: #0f172a;
             --col-text-muted: #64748b;
-            --col-primary: #059669; /* 鉄道らしいグリーンに変更 */
+            --col-primary: #059669;
             --col-primary-hover: #047857;
             --col-danger: #ef4444;
             --col-success: #10b981;
@@ -187,7 +187,7 @@
             .theme-toggle { padding: 6px 12px; }
             
             .table-container { display: none; }
-            #st-cards-mobile { display: flex !important; }
+            #st-cards-mobile, #rt-cards-mobile { display: flex !important; }
         }
         .mobile-menu-btn { display: none; cursor: pointer; }
     </style>
@@ -228,7 +228,7 @@
             <button class="btn btn-outline" onclick="UI.showSettingsModal()">SETTINGS</button>
         </div>
         <div style="position: absolute; bottom: 20px; color: var(--col-text-muted); font-size: 0.8rem; text-align: center; line-height: 1.4;">
-            Version v0.1.3.3<br>システム安定化アップデート
+            Version v0.1.4<br>路線建設アップデート
         </div>
     </div>
 
@@ -335,7 +335,6 @@
                 
                 <div class="header-stats-buttons">
                     <button class="btn" style="padding: 6px 15px;" onclick="Logic.advanceDay()" id="btn-next-day">NEXT DAY ➔</button>
-                    <!-- In-header Theme Toggle (replaces absolute one for this screen) -->
                     <button class="theme-toggle" onclick="ThemeManager.toggleTheme()" style="padding: 6px 12px; box-shadow: none;">
                         <span class="theme-icon">🌙</span>
                         <span class="theme-text">ダークモード</span>
@@ -367,7 +366,7 @@
                 <main id="view-map" class="mgmt-panel active" style="padding:0;">
                     <div style="position:absolute; top:20px; left:20px; background:var(--col-bg-panel); padding:15px; border-radius:8px; border:1px solid var(--panel-border); box-shadow:0 4px 10px var(--shadow-color); z-index:20;">
                         <h3 style="margin-bottom:5px;" id="map-region-name">展開地域</h3>
-                        <p class="text-muted" style="font-size:0.85rem;">※路線網マップシステムは現在開発中です。<br>今後のアップデートで駅や線路の敷設機能が追加されます。</p>
+                        <p class="text-muted" style="font-size:0.85rem;">自社所有駅と接続された路線が表示されます。</p>
                     </div>
                     <!-- 簡易的な日本地図表示用SVG -->
                     <svg id="map-svg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice">
@@ -442,12 +441,36 @@
                     </div>
                 </div>
 
-                <!-- Placeholder Views for Future Updates -->
+                <!-- Routes View -->
                 <div id="view-routes" class="mgmt-panel">
-                    <div class="panel-header-title">ROUTES (線路・路線の管理)</div>
-                    <div class="card"><div class="card-body">この機能は今後のアップデートで実装予定です。<br>駅間の線路敷設（物理インフラ）と、そこを走る運行系統の管理を行います。</div></div>
+                    <div class="panel-header-title">ROUTES (路線の管理)</div>
+                    <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                        <p class="text-muted" style="font-size: 0.9rem;">所有駅同士を線路で結び、路線ネットワークを構築します。</p>
+                        <button class="btn" onclick="Views.showRouteBuildModal()">＋ 新規路線を建設</button>
+                    </div>
+                    
+                    <div class="card table-container" id="rt-table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>路線名</th>
+                                    <th>接続区間</th>
+                                    <th>距離</th>
+                                    <th>建設費用</th>
+                                    <th>建設日</th>
+                                    <th>状態</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rt-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div id="rt-cards-mobile" style="display: none; flex-direction: column; gap: 10px;">
+                    </div>
                 </div>
 
+                <!-- Placeholder Views for Future Updates -->
                 <div id="view-trains" class="mgmt-panel">
                     <div class="panel-header-title">TRAINS (車両管理)</div>
                     <div class="card"><div class="card-body">この機能は今後のアップデートで実装予定です。<br>通勤形、近郊形、特急形などの各種車両の購入・リース、編成の編成組み替えを管理します。</div></div>
@@ -479,11 +502,11 @@
 
     <script>
         /**
-         * RAILWAY TYCOON JAPAN v0.1.3.3
+         * RAILWAY TYCOON JAPAN v0.1.4
          * 基本システムの構築 (UI, Title, Setup, Save/Load, Day Advance) 
          * + 駅データベース
          * + 駅取得機能 & 自社所有駅管理機能
-         * + v0.1.3.3 安定化修正 (互換性・バリデーション強化・セーブデータ修正保存)
+         * + 路線建設機能 (駅間接続)
          */
 
         // ==========================================
@@ -499,8 +522,8 @@
         // Game Static Data
         // ==========================================
         const GameData = {
-            VERSION: "0.1.3.3",
-            VALID_VERSIONS: ["0.1", "0.1.1", "0.1.2", "0.1.3", "0.1.3.1", "0.1.3.2", "0.1.3.3"],
+            VERSION: "0.1.4",
+            VALID_VERSIONS: ["0.1", "0.1.1", "0.1.2", "0.1.3", "0.1.3.1", "0.1.3.2", "0.1.3.3", "0.1.3.4", "0.1.4"],
             SAVE_KEY: "rtj_save_v01",
             START_DATE: "2025-04-01",
             
@@ -526,7 +549,6 @@
                 typeMult: { '一般駅': 1.0, '主要駅': 1.2, 'ターミナル駅': 1.5, '新幹線駅': 2.0 }
             },
 
-            // 簡易的な日本地図用のポリゴンデータ（描画用）
             MAP_POLYGONS: [
                 [[41.4,140.2], [45.5,142.0], [44.3,145.3], [42.0,143.2], [41.4,140.2]], // 北海道
                 [[40.9,140.5], [37.9,139.0], [36.7,136.7], [34.7,131.5], [33.4,135.8], [34.6,138.8], [35.6,140.0], [38.3,141.5], [40.9,140.5]], // 本州
@@ -534,53 +556,64 @@
                 [[33.9,131.0], [33.6,130.4], [31.2,130.6], [32.5,131.8], [33.9,131.0]]  // 九州
             ],
 
-            // 駅マスターデータベース
             STATION_MASTER: [
                 // 北海道
                 { id: 'st_sapporo', name: '札幌', kana: 'さっぽろ', pref: '北海道', city: '札幌市北区', region: 'hokkaido', lat: 43.0686, lon: 141.3508, type: 'ターミナル駅', companies: ['JR北海道', '札幌市営地下鉄'], scale: '大規模', desc: '北海道最大のターミナル駅。' },
                 { id: 'st_hakodate', name: '函館', kana: 'はこだて', pref: '北海道', city: '函館市', region: 'hokkaido', lat: 41.7737, lon: 140.7264, type: '主要駅', companies: ['JR北海道', '函館市電'], scale: '中規模', desc: '道南の拠点駅。' },
                 { id: 'st_asahikawa', name: '旭川', kana: 'あさひかわ', pref: '北海道', city: '旭川市', region: 'hokkaido', lat: 43.7627, lon: 142.3587, type: '主要駅', companies: ['JR北海道'], scale: '中規模', desc: '道北の拠点駅。' },
-                
                 // 東北
                 { id: 'st_sendai', name: '仙台', kana: 'せんだい', pref: '宮城県', city: '仙台市青葉区', region: 'tohoku', lat: 38.2601, lon: 140.8824, type: '新幹線駅', companies: ['JR東日本', '仙台市地下鉄', '仙台空港鉄道'], scale: '大規模', desc: '東北地方最大のターミナル。' },
                 { id: 'st_morioka', name: '盛岡', kana: 'もりおか', pref: '岩手県', city: '盛岡市', region: 'tohoku', lat: 39.7015, lon: 141.1362, type: '新幹線駅', companies: ['JR東日本', 'IGRいわて銀河鉄道'], scale: '中規模', desc: '北東北の交通の要衝。' },
                 { id: 'st_aomori', name: '青森', kana: 'あおもり', pref: '青森県', city: '青森市', region: 'tohoku', lat: 40.8293, lon: 140.7341, type: '主要駅', companies: ['JR東日本', '青い森鉄道'], scale: '中規模', desc: '本州最北端の主要駅。' },
-
                 // 関東
                 { id: 'st_tokyo', name: '東京', kana: 'とうきょう', pref: '東京都', city: '千代田区', region: 'kanto', lat: 35.6812, lon: 139.7671, type: 'ターミナル駅', companies: ['JR東日本', 'JR東海', '東京メトロ'], scale: '大規模', desc: '日本の鉄道網の中心となる巨大ターミナル。' },
                 { id: 'st_shinjuku', name: '新宿', kana: 'しんじゅく', pref: '東京都', city: '新宿区', region: 'kanto', lat: 35.6909, lon: 139.7003, type: 'ターミナル駅', companies: ['JR東日本', '京王電鉄', '小田急電鉄', '東京メトロ', '都営地下鉄'], scale: '大規模', desc: '乗降客数世界一の巨大ターミナル駅。' },
                 { id: 'st_yokohama', name: '横浜', kana: 'よこはま', pref: '神奈川県', city: '横浜市西区', region: 'kanto', lat: 35.4658, lon: 139.6223, type: 'ターミナル駅', companies: ['JR東日本', '東急電鉄', '京急電鉄', '相模鉄道', '横浜市営地下鉄', '横浜高速鉄道'], scale: '大規模', desc: '神奈川県最大のターミナル。' },
                 { id: 'st_omiya', name: '大宮', kana: 'おおみや', pref: '埼玉県', city: 'さいたま市大宮区', region: 'kanto', lat: 35.9063, lon: 139.6240, type: '新幹線駅', companies: ['JR東日本', '東武鉄道', '埼玉新都市交通'], scale: '大規模', desc: '関東と東日本を結ぶ結節点。' },
                 { id: 'st_chiba', name: '千葉', kana: 'ちば', pref: '千葉県', city: '千葉市中央区', region: 'kanto', lat: 35.6131, lon: 140.1136, type: '主要駅', companies: ['JR東日本', '千葉都市モノレール'], scale: '大規模', desc: '千葉県の中心駅。' },
-
                 // 中部
                 { id: 'st_nagoya', name: '名古屋', kana: 'なごや', pref: '愛知県', city: '名古屋市中村区', region: 'chubu', lat: 35.1709, lon: 136.8815, type: 'ターミナル駅', companies: ['JR東海', '名古屋鉄道', '近畿日本鉄道', '名古屋市営地下鉄', '名古屋臨海高速鉄道'], scale: '大規模', desc: '中京圏最大のターミナル。' },
                 { id: 'st_niigata', name: '新潟', kana: 'にいがた', pref: '新潟県', city: '新潟市中央区', region: 'chubu', lat: 37.9120, lon: 139.0618, type: '新幹線駅', companies: ['JR東日本'], scale: '中規模', desc: '日本海側最大級の駅。' },
                 { id: 'st_kanazawa', name: '金沢', kana: 'かなざわ', pref: '石川県', city: '金沢市', region: 'chubu', lat: 36.5780, lon: 136.6478, type: '新幹線駅', companies: ['JR西日本', 'IRいしかわ鉄道', '北陸鉄道'], scale: '中規模', desc: '北陸地方の拠点駅。' },
                 { id: 'st_shizuoka', name: '静岡', kana: 'しずおか', pref: '静岡県', city: '静岡市葵区', region: 'chubu', lat: 34.9717, lon: 138.3886, type: '新幹線駅', companies: ['JR東海', '静岡鉄道'], scale: '中規模', desc: '静岡県の中心駅。' },
-
                 // 近畿
                 { id: 'st_osaka', name: '大阪', kana: 'おおさか', pref: '大阪府', city: '大阪市北区', region: 'kinki', lat: 34.7024, lon: 135.4959, type: 'ターミナル駅', companies: ['JR西日本', '阪神電気鉄道', '阪急電鉄', '大阪メトロ'], scale: '大規模', desc: '西日本最大のターミナル（梅田駅など近接駅含む）。' },
                 { id: 'st_kyoto', name: '京都', kana: 'きょうと', pref: '京都府', city: '京都市下京区', region: 'kinki', lat: 34.9858, lon: 135.7587, type: 'ターミナル駅', companies: ['JR西日本', 'JR東海', '近畿日本鉄道', '京都市営地下鉄'], scale: '大規模', desc: '日本を代表する国際観光都市の玄関口。' },
                 { id: 'st_sannomiya', name: '三ノ宮', kana: 'さんのみや', pref: '兵庫県', city: '神戸市中央区', region: 'kinki', lat: 34.6943, lon: 135.1945, type: '主要駅', companies: ['JR西日本', '阪急電鉄', '阪神電気鉄道', '神戸新交通', '神戸市営地下鉄'], scale: '大規模', desc: '神戸市の中心駅。' },
                 { id: 'st_nara', name: '奈良', kana: 'なら', pref: '奈良県', city: '奈良市', region: 'kinki', lat: 34.6813, lon: 135.8188, type: '主要駅', companies: ['JR西日本'], scale: '中規模', desc: '古都・奈良の玄関口の一つ。' },
-
                 // 中国
                 { id: 'st_hiroshima', name: '広島', kana: 'ひろしま', pref: '広島県', city: '広島市南区', region: 'chugoku', lat: 34.3975, lon: 132.4753, type: '新幹線駅', companies: ['JR西日本', '広島電鉄'], scale: '大規模', desc: '中国地方最大の駅。' },
                 { id: 'st_okayama', name: '岡山', kana: 'おかやま', pref: '岡山県', city: '岡山市北区', region: 'chugoku', lat: 34.6662, lon: 133.9185, type: '新幹線駅', companies: ['JR西日本', '岡山電気軌道'], scale: '大規模', desc: '山陽・山陰・四国を結ぶ交通の要所。' },
                 { id: 'st_yonago', name: '米子', kana: 'よなご', pref: '鳥取県', city: '米子市', region: 'chugoku', lat: 35.4233, lon: 133.3297, type: '主要駅', companies: ['JR西日本'], scale: '中規模', desc: '山陰地方の主要な鉄道結節点。' },
-
                 // 四国
                 { id: 'st_takamatsu', name: '高松', kana: 'たかまつ', pref: '香川県', city: '高松市', region: 'shikoku', lat: 34.3498, lon: 134.0470, type: '主要駅', companies: ['JR四国', '高松琴平電気鉄道'], scale: '中規模', desc: '四国の玄関口。' },
                 { id: 'st_matsuyama', name: '松山', kana: 'まつやま', pref: '愛媛県', city: '松山市', region: 'shikoku', lat: 33.8400, lon: 132.7607, type: '主要駅', companies: ['JR四国', '伊予鉄道'], scale: '中規模', desc: '四国最大の人口を擁する都市の中心駅。' },
                 { id: 'st_tokushima', name: '徳島', kana: 'とくしま', pref: '徳島県', city: '徳島市', region: 'shikoku', lat: 34.0746, lon: 134.5518, type: '主要駅', companies: ['JR四国'], scale: '小規模', desc: '徳島県の中心駅。' },
-
                 // 九州
                 { id: 'st_hakata', name: '博多', kana: 'はかた', pref: '福岡県', city: '福岡市博多区', region: 'kyushu', lat: 33.5897, lon: 130.4207, type: 'ターミナル駅', companies: ['JR九州', 'JR西日本', '福岡市地下鉄'], scale: '大規模', desc: '九州最大のターミナル駅。' },
                 { id: 'st_kumamoto', name: '熊本', kana: 'くまもと', pref: '熊本県', city: '熊本市西区', region: 'kyushu', lat: 32.7898, lon: 130.6888, type: '新幹線駅', companies: ['JR九州', '熊本市交通局'], scale: '中規模', desc: '中九州の拠点駅。' },
                 { id: 'st_kagoshimachuo', name: '鹿児島中央', kana: 'かごしまちゅうおう', pref: '鹿児島県', city: '鹿児島市', region: 'kyushu', lat: 31.5839, lon: 130.5413, type: '新幹線駅', companies: ['JR九州', '鹿児島市交通局'], scale: '中規模', desc: '南九州の拠点駅。' },
                 { id: 'st_kokura', name: '小倉', kana: 'こくら', pref: '福岡県', city: '北九州市小倉北区', region: 'kyushu', lat: 33.8869, lon: 130.8824, type: '新幹線駅', companies: ['JR九州', 'JR西日本', '北九州高速鉄道'], scale: '大規模', desc: '本州と九州を結ぶ要衝。' }
-            ]
+            ],
+            
+            migrateData(data) {
+                if (data.version === "0.1") data.version = "0.1.1";
+                if (data.version === "0.1.1") data.version = "0.1.2";
+                if (data.version === "0.1.2") {
+                    data.version = "0.1.3";
+                    if (!data.data.stations) data.data.stations = [];
+                    data.stats.stations = data.data.stations.length;
+                }
+                if (data.version === "0.1.3") data.version = "0.1.3.1";
+                if (data.version === "0.1.3.1") data.version = "0.1.3.2";
+                if (data.version === "0.1.3.2") data.version = "0.1.3.3";
+                if (data.version === "0.1.3.3" || data.version === "0.1.3.4") {
+                    data.version = "0.1.4";
+                    if (!data.data.routes) data.data.routes = [];
+                    data.stats.routes = data.data.routes.length;
+                }
+                return data;
+            }
         };
 
         // Player Game State Object
@@ -642,6 +675,10 @@
                 if (id === 'view-stations') {
                     Views.resetStationFilters();
                     Views.renderStations();
+                } else if (id === 'view-routes') {
+                    Views.renderRoutes();
+                } else if (id === 'view-map') {
+                    Game.drawMap();
                 }
             },
             showModal(title, msg, contentHtml = null, btnsHtml = null) {
@@ -714,81 +751,6 @@
                 this.buildRegionSelector();
                 this.drawMap();
             },
-            
-            checkSavedData() {
-                const btnContinue = document.getElementById('btn-continue');
-                try {
-                    const saved = localStorage.getItem(GameData.SAVE_KEY);
-                    if (saved) {
-                        const data = JSON.parse(saved);
-                        let checkData = data;
-                        
-                        if (GameData.VALID_VERSIONS.includes(checkData.version)) {
-                            checkData = this.migrateData(checkData);
-                        } else {
-                            throw new Error("Unsupported version");
-                        }
-                        
-                        if (this.validateSaveData(checkData)) {
-                            btnContinue.disabled = false;
-                            btnContinue.textContent = `LOAD GAME (${checkData.company.name})`;
-                            return;
-                        }
-                    }
-                } catch(e) {
-                    console.error("Save data check failed", e);
-                }
-                btnContinue.disabled = true;
-                btnContinue.textContent = "LOAD GAME";
-            },
-
-            validateSaveData(data) {
-                if (!data || typeof data !== 'object') return false;
-                
-                // 基本情報の存在確認
-                if (!data.version || !data.metadata || !data.company || !data.settings || !data.data || !data.stats) return false;
-                
-                // company の検証
-                if (typeof data.company.name !== 'string' || data.company.name.trim() === '') return false;
-                if (typeof data.company.funds !== 'number' || isNaN(data.company.funds)) return false;
-                if (typeof data.company.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data.company.date)) return false;
-                if (!('logo' in data.company) || !('color' in data.company) || !('hq' in data.company)) return false;
-
-                // settings の検証
-                if (!('region' in data.settings) || !('difficulty' in data.settings) || !('hasCompetitor' in data.settings)) return false;
-                const validRegions = GameData.REGIONS.map(r => r.id);
-                if (!validRegions.includes(data.settings.region)) return false;
-                const validDiffs = Object.keys(GameData.DIFFICULTIES);
-                if (!validDiffs.includes(data.settings.difficulty)) return false;
-
-                // data (配列) の検証
-                if (!Array.isArray(data.data.stations) || !Array.isArray(data.data.tracks) || !Array.isArray(data.data.routes) || !Array.isArray(data.data.trains) || !Array.isArray(data.data.competitors)) return false;
-
-                // stats (数値) の検証
-                if (typeof data.stats.stations !== 'number' || typeof data.stats.tracks !== 'number' || typeof data.stats.routes !== 'number' || typeof data.stats.trains !== 'number') return false;
-
-                return true;
-            },
-
-            migrateData(data) {
-                if (data.version === "0.1") data.version = "0.1.1";
-                if (data.version === "0.1.1") data.version = "0.1.2";
-                if (data.version === "0.1.2") {
-                    data.version = "0.1.3";
-                    if (!data.data.stations) data.data.stations = [];
-                    data.stats.stations = data.data.stations.length;
-                }
-                if (data.version === "0.1.3") {
-                    data.version = "0.1.3.1";
-                }
-                if (data.version === "0.1.3.1") {
-                    data.version = "0.1.3.2";
-                }
-                if (data.version === "0.1.3.2") {
-                    data.version = "0.1.3.3";
-                }
-                return data;
-            },
 
             buildRegionSelector() {
                 const container = document.getElementById('region-selector');
@@ -815,6 +777,50 @@
                 const diff = GameData.DIFFICULTIES[val];
                 document.getElementById('diff-description').textContent = diff ? diff.desc : '';
             },
+            
+            checkSavedData() {
+                const btnContinue = document.getElementById('btn-continue');
+                try {
+                    const saved = localStorage.getItem(GameData.SAVE_KEY);
+                    if (saved) {
+                        const data = JSON.parse(saved);
+                        let checkData = data;
+                        
+                        if (GameData.VALID_VERSIONS.includes(checkData.version)) {
+                            checkData = GameData.migrateData(checkData);
+                        } else {
+                            throw new Error("Unsupported version");
+                        }
+                        
+                        if (this.validateSaveData(checkData)) {
+                            btnContinue.disabled = false;
+                            btnContinue.textContent = `LOAD GAME (${checkData.company.name})`;
+                            return;
+                        }
+                    }
+                } catch(e) {
+                    console.error("Save data check failed", e);
+                }
+                btnContinue.disabled = true;
+                btnContinue.textContent = "LOAD GAME";
+            },
+
+            validateSaveData(data) {
+                if (!data || typeof data !== 'object') return false;
+                if (!data.version || !data.metadata || !data.company || !data.settings || !data.data || !data.stats) return false;
+                if (typeof data.company.name !== 'string' || data.company.name.trim() === '') return false;
+                if (typeof data.company.funds !== 'number' || isNaN(data.company.funds)) return false;
+                if (typeof data.company.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data.company.date)) return false;
+                if (!('logo' in data.company) || !('color' in data.company) || !('hq' in data.company)) return false;
+                if (!('region' in data.settings) || !('difficulty' in data.settings) || !('hasCompetitor' in data.settings)) return false;
+                const validRegions = GameData.REGIONS.map(r => r.id);
+                if (!validRegions.includes(data.settings.region)) return false;
+                const validDiffs = Object.keys(GameData.DIFFICULTIES);
+                if (!validDiffs.includes(data.settings.difficulty)) return false;
+                if (!Array.isArray(data.data.stations) || !Array.isArray(data.data.tracks) || !Array.isArray(data.data.routes) || !Array.isArray(data.data.trains) || !Array.isArray(data.data.competitors)) return false;
+                if (typeof data.stats.stations !== 'number' || typeof data.stats.tracks !== 'number' || typeof data.stats.routes !== 'number' || typeof data.stats.trains !== 'number') return false;
+                return true;
+            },
 
             proceedToCompanySetup(e) {
                 e.preventDefault();
@@ -823,15 +829,12 @@
                     UI.showToast("展開する地域を選択してください。", "error");
                     return;
                 }
-                
-                // 選択された地域に応じて、仮の本社所在地のセレクトボックスを構築
                 const regData = GameData.REGIONS.find(r => r.id === region);
                 const hqSelect = document.getElementById('c-hq');
                 hqSelect.innerHTML = '';
                 regData.hqOptions.forEach(opt => {
                     hqSelect.innerHTML += `<option value="${opt}">${opt}駅</option>`;
                 });
-
                 UI.switchScreen('screen-new-company');
             },
 
@@ -852,7 +855,6 @@
                 reader.onload = () => {
                     const img = new Image();
                     img.onload = () => {
-                        // 簡易リサイズ処理
                         const canvas = document.createElement('canvas');
                         const MAX_WIDTH = 400; const MAX_HEIGHT = 150;
                         let width = img.width; let height = img.height;
@@ -891,7 +893,6 @@
                 const diff = GameData.DIFFICULTIES[diffId];
                 const region = GameData.REGIONS.find(r => r.id === regionId);
 
-                // Create Game State
                 Player = {
                     version: GameData.VERSION,
                     metadata: { createdAt: new Date().toISOString() },
@@ -909,7 +910,7 @@
                         hasCompetitor: hasComp
                     },
                     data: {
-                        stations: [], // 自社所有駅
+                        stations: [], 
                         tracks: [],
                         routes: [],
                         trains: [],
@@ -925,7 +926,6 @@
 
                 document.getElementById('map-region-name').textContent = `展開地域: ${region.name}`;
                 
-                // 検索フィルター・タブを初期化
                 Views.resetStationFilters();
                 Views.activeStationTab = 'db';
 
@@ -944,9 +944,7 @@
                         UI.showModal("ロードエラー", "対応していないバージョンのセーブデータです。");
                         return;
                     }
-                    
-                    const originalVersion = data.version;
-                    data = this.migrateData(data);
+                    data = GameData.migrateData(data);
                     
                     if (!this.validateSaveData(data)) {
                         UI.showModal("ロードエラー", "セーブデータが破損しているか、必須項目が不足しています。");
@@ -959,7 +957,7 @@
                     let hasInvalidStation = false;
                     const seenIds = new Set();
                     const seenMasterIds = new Set();
-                    const validStatuses = ['未接続'];
+                    const validStatuses = ['未接続', '接続済み'];
 
                     Player.data.stations = Player.data.stations.filter(ps => {
                         try {
@@ -969,11 +967,10 @@
                             if (typeof ps.name !== 'string' || ps.name.trim() === '') throw new Error(`Invalid name`);
                             if (typeof ps.acquiredDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(ps.acquiredDate)) throw new Error(`Invalid acquiredDate: ${ps.acquiredDate}`);
                             
-                            // Check date validity
                             const dParts = ps.acquiredDate.split('-');
                             const dObj = new Date(dParts[0], dParts[1]-1, dParts[2]);
                             if (dObj.getFullYear() != dParts[0] || (dObj.getMonth()+1) != dParts[1] || dObj.getDate() != dParts[2]) {
-                                throw new Error(`Invalid date format (non-existent date): ${ps.acquiredDate}`);
+                                throw new Error(`Invalid date format: ${ps.acquiredDate}`);
                             }
 
                             if (typeof ps.acquiredPrice !== 'number' || !isFinite(ps.acquiredPrice) || ps.acquiredPrice < 0) throw new Error(`Invalid acquiredPrice: ${ps.acquiredPrice}`);
@@ -983,30 +980,28 @@
                             // connectedTracksの厳密な検証
                             const trackSet = new Set();
                             for (let t of ps.connectedTracks) {
-                                if (typeof t !== 'string') throw new Error(`connectedTracks contains invalid type: ${typeof t}`);
+                                if (typeof t !== 'string') throw new Error(`connectedTracks contains invalid type`);
                                 if (t === '') throw new Error(`connectedTracks contains empty string`);
-                                if (t !== t.trim()) throw new Error(`connectedTracks contains leading/trailing spaces: "${t}"`);
-                                if (trackSet.has(t)) throw new Error(`connectedTracks contains duplicate id: ${t}`);
+                                if (t !== t.trim()) throw new Error(`connectedTracks contains spaces`);
+                                if (trackSet.has(t)) throw new Error(`connectedTracks duplicate`);
                                 trackSet.add(t);
                             }
                             
                             const master = GameData.STATION_MASTER.find(m => m.id === ps.masterId);
-                            if (!master) throw new Error(`Master station not found for masterId: ${ps.masterId}`);
+                            if (!master) throw new Error(`Master station not found`);
                             
-                            // 駅名の整合性検証
-                            if (ps.name !== master.name) throw new Error(`Station name mismatch: expected ${master.name}, got ${ps.name}`);
-                            if (master.region !== Player.settings.region) throw new Error(`Region mismatch for station ${ps.name}`);
+                            if (ps.name !== master.name) throw new Error(`Station name mismatch`);
+                            if (master.region !== Player.settings.region) throw new Error(`Region mismatch`);
                             
-                            // 重複所有の排除
-                            if (seenIds.has(ps.id)) throw new Error(`Duplicate id: ${ps.id}`);
-                            if (seenMasterIds.has(ps.masterId)) throw new Error(`Duplicate masterId: ${ps.masterId}`);
+                            if (seenIds.has(ps.id)) throw new Error(`Duplicate id`);
+                            if (seenMasterIds.has(ps.masterId)) throw new Error(`Duplicate masterId`);
                             
                             seenIds.add(ps.id);
                             seenMasterIds.add(ps.masterId);
                             
                             return true;
                         } catch (e) {
-                            console.warn("不正な駅データを検出したため除外しました:", e.message, ps);
+                            console.warn("不正な駅データを除外しました:", e.message, ps);
                             hasInvalidStation = true;
                             return false;
                         }
@@ -1017,37 +1012,61 @@
                         hasInvalidStation = true;
                     }
                     
-                    let needSave = false;
-                    if (hasInvalidStation) {
-                        UI.showToast("セーブデータの不整合を検出したため、一部のデータを修復しました。", "warning");
-                        needSave = true;
-                    } else if (originalVersion !== GameData.VERSION) {
-                        needSave = true;
-                    }
+                    // --- ルートデータの検証 ---
+                    let hasInvalidRoute = false;
+                    const validRouteStatuses = ['建設完了'];
+                    const seenRouteIds = new Set();
                     
-                    if (needSave) {
-                        const saveSuccess = this.saveGame(false);
-                        if (hasInvalidStation) {
-                            if (saveSuccess) {
-                                setTimeout(() => UI.showToast("修復したセーブデータを保存しました。", "success"), 1500);
-                            } else {
-                                setTimeout(() => UI.showToast("修復したデータの保存に失敗しました。ブラウザの保存容量や設定を確認してください。", "error"), 1500);
+                    Player.data.routes = Player.data.routes.filter(r => {
+                        try {
+                            if (!r || typeof r !== 'object') throw new Error("Route is not an object");
+                            if (typeof r.id !== 'string' || r.id.trim() === '') throw new Error(`Invalid route id`);
+                            if (typeof r.name !== 'string' || r.name.trim() === '') throw new Error(`Invalid route name`);
+                            if (!Array.isArray(r.stationIds) || r.stationIds.length !== 2) throw new Error(`Invalid stationIds`);
+                            
+                            const [st1, st2] = r.stationIds;
+                            if (typeof st1 !== 'string' || typeof st2 !== 'string') throw new Error(`Invalid stationIds types`);
+                            if (st1 === st2) throw new Error(`Same station connected`);
+                            
+                            if (!Player.data.stations.some(s => s.id === st1) || !Player.data.stations.some(s => s.id === st2)) {
+                                throw new Error(`One or more stations in route do not exist in owned stations`);
                             }
+                            
+                            if (typeof r.distance !== 'number' || r.distance < 0) throw new Error(`Invalid route distance`);
+                            if (typeof r.constructionCost !== 'number' || r.constructionCost < 0) throw new Error(`Invalid route cost`);
+                            if (typeof r.constructionDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(r.constructionDate)) throw new Error(`Invalid route date`);
+                            if (!validRouteStatuses.includes(r.status)) throw new Error(`Invalid route status: ${r.status}`);
+                            
+                            if (seenRouteIds.has(r.id)) throw new Error(`Duplicate route id: ${r.id}`);
+                            seenRouteIds.add(r.id);
+                            
+                            return true;
+                        } catch(e) {
+                            console.warn("不正な路線データを除外しました:", e.message, r);
+                            hasInvalidRoute = true;
+                            return false;
                         }
+                    });
+                    
+                    if (Player.stats.routes !== Player.data.routes.length) {
+                        Player.stats.routes = Player.data.routes.length;
+                        hasInvalidRoute = true;
+                    }
+
+                    if (hasInvalidStation || hasInvalidRoute) {
+                        UI.showToast("一部のデータに不整合があったため修正しました。", "warning");
+                        this.saveGame(false);
                     }
                     // ---
                     
                     const region = GameData.REGIONS.find(r => r.id === Player.settings.region);
                     document.getElementById('map-region-name').textContent = `展開地域: ${region ? region.name : '不明'}`;
                     
-                    // 検索フィルター・タブを初期化
                     Views.resetStationFilters();
                     Views.activeStationTab = 'db';
 
                     this.enterHQ();
-                    if (!hasInvalidStation) {
-                        UI.showToast("データを読み込みました", "success");
-                    }
+                    UI.showToast("データを読み込みました", "success");
                 } catch(e) {
                     console.error(e);
                     UI.showModal("ロードエラー", "セーブデータの解析に失敗しました。データが破損している可能性があります。");
@@ -1064,7 +1083,7 @@
                     return true;
                 } catch(e) {
                     console.error("Save failed", e);
-                    UI.showModal("保存エラー", "データの保存に失敗しました。ブラウザの容量制限（ロゴ画像のサイズ等）をご確認ください。");
+                    UI.showToast("データの保存に失敗しました。", "error");
                     return false;
                 } finally {
                     this.isSaving = false;
@@ -1074,23 +1093,21 @@
             enterHQ() {
                 UI.switchScreen('screen-hq');
                 UI.updateHeader();
-                UI.switchMainView('view-map', document.querySelector('.hq-sidebar .nav-item')); // Activate MAP by default
+                UI.switchMainView('view-map', document.querySelector('.hq-sidebar .nav-item')); 
             },
 
             returnToTitle() {
                 this.saveGame(true);
                 Player = null;
-                this.checkSavedData(); // Update title button
+                this.checkSavedData();
                 UI.switchScreen('screen-title');
             },
             
-            // 地図描画ロジック
             drawMap() {
                 const group = document.getElementById('map-outline');
                 group.innerHTML = '';
                 
                 const width = 1000, height = 1000;
-                // 日本の緯度経度をSVG座標系に簡易マッピング
                 const project = (lat, lon) => {
                     const x = ((lon - 127.0) / (146.5 - 127.0)) * width;
                     const r = Math.PI / 180;
@@ -1111,6 +1128,56 @@
                     poly.setAttribute("stroke-linejoin", "round");
                     group.appendChild(poly);
                 });
+                
+                // 建設済み路線の描画
+                if (Player && Player.data.routes) {
+                    Player.data.routes.forEach(r => {
+                        const ps1 = Player.data.stations.find(s => s.id === r.stationIds[0]);
+                        const ps2 = Player.data.stations.find(s => s.id === r.stationIds[1]);
+                        if (!ps1 || !ps2) return;
+                        
+                        const m1 = GameData.STATION_MASTER.find(m => m.id === ps1.masterId);
+                        const m2 = GameData.STATION_MASTER.find(m => m.id === ps2.masterId);
+                        if (!m1 || !m2) return;
+                        
+                        const pt1 = project(m1.lat, m1.lon);
+                        const pt2 = project(m2.lat, m2.lon);
+                        
+                        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                        line.setAttribute("x1", pt1.x);
+                        line.setAttribute("y1", pt1.y);
+                        line.setAttribute("x2", pt2.x);
+                        line.setAttribute("y2", pt2.y);
+                        line.setAttribute("stroke", Player.company.color);
+                        line.setAttribute("stroke-width", "3");
+                        line.setAttribute("stroke-linecap", "round");
+                        group.appendChild(line);
+                    });
+                }
+                
+                // 自社所有駅の描画
+                if (Player && Player.data.stations) {
+                    Player.data.stations.forEach(ps => {
+                        const m = GameData.STATION_MASTER.find(m => m.id === ps.masterId);
+                        if (!m) return;
+                        
+                        const pt = project(m.lat, m.lon);
+                        
+                        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        circle.setAttribute("cx", pt.x);
+                        circle.setAttribute("cy", pt.y);
+                        circle.setAttribute("r", "5");
+                        circle.setAttribute("fill", "var(--col-bg-panel)");
+                        circle.setAttribute("stroke", Player.company.color);
+                        circle.setAttribute("stroke-width", "2");
+                        
+                        const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+                        title.textContent = ps.name;
+                        circle.appendChild(title);
+                        
+                        group.appendChild(circle);
+                    });
+                }
             }
         };
 
@@ -1118,7 +1185,7 @@
         // Views / UI Renderers
         // ==========================================
         const Views = {
-            activeStationTab: 'db', // 'db' or 'owned'
+            activeStationTab: 'db', 
             stationFilter: { keyword: '', pref: '', type: '', scale: '', company: '' },
             isStationViewInit: false,
 
@@ -1145,7 +1212,6 @@
                     ? '※ここに表示されている駅はマスターデータです。詳細画面から「取得」を行うことで自社所有駅にできます。' 
                     : '※自社が所有している駅の一覧です。路線の起点・終点や経由地として利用できます。';
 
-                // Change Table Header
                 const thead = document.getElementById('st-table-head');
                 if (tab === 'db') {
                     thead.innerHTML = `<tr><th>駅名</th><th>都道府県</th><th>市区町村</th><th>種類</th><th>規模</th><th>乗り入れ会社</th><th>操作</th></tr>`;
@@ -1164,7 +1230,6 @@
                 if (!this.isStationViewInit) {
                     this.initStationFilters();
                     this.isStationViewInit = true;
-                    // Init header
                     document.getElementById('st-table-head').innerHTML = `<tr><th>駅名</th><th>都道府県</th><th>市区町村</th><th>種類</th><th>規模</th><th>乗り入れ会社</th><th>操作</th></tr>`;
                 }
                 this.updateStationsList();
@@ -1201,7 +1266,6 @@
 
                 let list = [];
                 if (this.activeStationTab === 'db') {
-                    // 駅マスターデータからの表示
                     list = GameData.STATION_MASTER.filter(s => s.region === regionId);
                     
                     if (f.keyword) {
@@ -1224,7 +1288,6 @@
                         const isOwned = Player.data.stations.some(ps => ps.masterId === s.id);
                         const nameDisplay = isOwned ? `${s.name} <span class="badge badge-success" style="margin-left:5px;">取得済み</span>` : s.name;
 
-                        // PC Table
                         tb.innerHTML += `
                             <tr>
                                 <td class="font-bold" style="color: var(--col-primary);">${nameDisplay}</td>
@@ -1236,7 +1299,6 @@
                                 <td><button class="btn btn-sm btn-outline" onclick="Views.showStationDetails('${s.id}')">詳細</button></td>
                             </tr>
                         `;
-                        // Mobile Card
                         mob.innerHTML += `
                             <div class="card">
                                 <div class="card-header" style="color: var(--col-primary);">${s.name} <span class="text-muted" style="font-size:0.8rem; font-weight:normal;">${s.kana}</span> ${isOwned ? '<span class="badge badge-success">取得済み</span>' : ''}</div>
@@ -1253,7 +1315,6 @@
                     });
 
                 } else {
-                    // 自社所有駅の表示
                     list = Player.data.stations;
                     
                     if (f.keyword) {
@@ -1274,6 +1335,9 @@
                         const master = GameData.STATION_MASTER.find(m => m.id === ps.masterId);
                         if(!master) return;
                         
+                        const currentStatus = ps.connectedTracks.length > 0 ? '接続済み' : '未接続';
+                        const badgeClass = ps.connectedTracks.length > 0 ? 'badge-success' : 'badge-warning';
+                        
                         tb.innerHTML += `
                             <tr>
                                 <td class="font-bold" style="color: var(--col-primary);">${ps.name}</td>
@@ -1282,13 +1346,13 @@
                                 <td>${master.scale}</td>
                                 <td>${ps.acquiredDate}</td>
                                 <td>${Utils.formatMoney(ps.acquiredPrice)}</td>
-                                <td><span class="badge badge-warning">${ps.status}</span></td>
+                                <td><span class="badge ${badgeClass}">${currentStatus}</span></td>
                                 <td><button class="btn btn-sm btn-outline" onclick="Views.showOwnedStationDetails('${ps.id}')">詳細</button></td>
                             </tr>
                         `;
                         mob.innerHTML += `
                             <div class="card">
-                                <div class="card-header" style="color: var(--col-primary);">${ps.name} <span class="badge badge-warning" style="margin-left:auto;">${ps.status}</span></div>
+                                <div class="card-header" style="color: var(--col-primary);">${ps.name} <span class="badge ${badgeClass}" style="margin-left:auto;">${currentStatus}</span></div>
                                 <div class="card-body">
                                     <div><b>所在地:</b> ${master.pref}${master.city}</div>
                                     <div><b>種類/規模:</b> ${master.type} / ${master.scale}</div>
@@ -1354,6 +1418,9 @@
                 if (!ps) return;
                 const s = GameData.STATION_MASTER.find(st => st.id === ps.masterId);
                 
+                const currentStatus = ps.connectedTracks.length > 0 ? '接続済み' : '未接続';
+                const badgeClass = ps.connectedTracks.length > 0 ? 'badge-success' : 'badge-warning';
+
                 const html = `
                     <div class="card"><div class="card-body">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
@@ -1361,7 +1428,7 @@
                                 <span class="text-muted" style="font-size: 0.8rem;">${s.kana}</span><br>
                                 <span class="font-bold" style="font-size: 1.5rem; color: var(--col-primary);">${ps.name} 駅</span>
                             </div>
-                            <span class="badge badge-warning" style="font-size: 1rem; padding: 8px 12px;">${ps.status}</span>
+                            <span class="badge ${badgeClass}" style="font-size: 1rem; padding: 8px 12px;">${currentStatus}</span>
                         </div>
                         <hr style="margin:10px 0; border:0; border-top:1px solid var(--panel-border);">
                         <table style="width: 100%; font-size: 0.9rem; line-height: 1.8; margin-bottom: 15px;">
@@ -1370,12 +1437,159 @@
                             <tr><td style="color: var(--col-text-muted);">駅の規模</td><td>${s.scale}</td></tr>
                             <tr><td style="color: var(--col-text-muted);">取得日</td><td>${ps.acquiredDate}</td></tr>
                             <tr><td style="color: var(--col-text-muted);">取得価格</td><td>${Utils.formatMoney(ps.acquiredPrice)}</td></tr>
+                            <tr><td style="color: var(--col-text-muted);">接続路線数</td><td>${ps.connectedTracks.length} 路線</td></tr>
                         </table>
-                        <p class="text-muted" style="font-size: 0.85rem;">※この駅は現在どの路線とも接続されていません。今後のアップデートで線路を敷設し、路線を形成することが可能になります。</p>
+                        <p class="text-muted" style="font-size: 0.85rem;">※今後のアップデートで車両を配置し、路線へ運行指示を出すことが可能になります。</p>
                     </div></div>
                 `;
                 
                 UI.showModal('自社所有駅 詳細', '', html, '<button class="btn btn-outline" onclick="UI.hideModal()">閉じる</button>');
+            },
+
+            // --- Routes View Methods ---
+            renderRoutes() {
+                if (!Player) return;
+                const tb = document.getElementById('rt-table-body');
+                const mob = document.getElementById('rt-cards-mobile');
+                tb.innerHTML = '';
+                mob.innerHTML = '';
+
+                const list = Player.data.routes || [];
+
+                if (list.length === 0) {
+                    const emptyMsg = '自社路線はまだありません。駅を接続して最初の路線を建設しましょう。';
+                    tb.innerHTML = `<tr><td colspan="6" class="text-center text-muted">${emptyMsg}</td></tr>`;
+                    mob.innerHTML = `<div class="text-center text-muted card"><div class="card-body">${emptyMsg}</div></div>`;
+                    return;
+                }
+
+                list.forEach(r => {
+                    const st1 = Player.data.stations.find(s => s.id === r.stationIds[0]);
+                    const st2 = Player.data.stations.find(s => s.id === r.stationIds[1]);
+                    const stName1 = st1 ? st1.name : '不明';
+                    const stName2 = st2 ? st2.name : '不明';
+                    const routeName = r.name || `${stName1} - ${stName2}`;
+                    
+                    tb.innerHTML += `
+                        <tr>
+                            <td class="font-bold" style="color: var(--col-primary);">${routeName}</td>
+                            <td>${stName1} ↔ ${stName2}</td>
+                            <td>${r.distance.toFixed(1)} km</td>
+                            <td>${Utils.formatMoney(r.constructionCost)}</td>
+                            <td>${r.constructionDate}</td>
+                            <td><span class="badge badge-success">${r.status}</span></td>
+                        </tr>
+                    `;
+                    mob.innerHTML += `
+                        <div class="card">
+                            <div class="card-header" style="color: var(--col-primary);">${routeName} <span class="badge badge-success" style="margin-left:auto;">${r.status}</span></div>
+                            <div class="card-body">
+                                <div><b>接続区間:</b> ${stName1} ↔ ${stName2}</div>
+                                <div><b>距離:</b> ${r.distance.toFixed(1)} km</div>
+                                <div><b>建設費用:</b> ${Utils.formatMoney(r.constructionCost)}</div>
+                                <div><b>建設日:</b> ${r.constructionDate}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+            },
+
+            showRouteBuildModal() {
+                if (Player.data.stations.length < 2) {
+                    UI.showToast("路線を建設するには、2つ以上の自社所有駅が必要です。", "warning");
+                    return;
+                }
+
+                let optionsHtml = '<option value="">駅を選択してください</option>';
+                Player.data.stations.forEach(ps => {
+                    const master = GameData.STATION_MASTER.find(m => m.id === ps.masterId);
+                    const info = master ? ` (${master.pref} / ${master.scale})` : '';
+                    optionsHtml += `<option value="${ps.id}">${ps.name} 駅${info}</option>`;
+                });
+
+                const html = `
+                    <div class="card"><div class="card-body">
+                        <p class="text-muted" style="margin-bottom: 15px; font-size: 0.9rem;">接続する2つの自社所有駅を選択してください。</p>
+                        
+                        <div class="input-group">
+                            <label>接続元駅</label>
+                            <select id="route-st1" class="input-field" onchange="Views.updateRouteCostPreview()">
+                                ${optionsHtml}
+                            </select>
+                        </div>
+                        
+                        <div style="text-align: center; color: var(--col-primary); font-size: 1.2rem; margin: -5px 0 10px;">↕</div>
+
+                        <div class="input-group">
+                            <label>接続先駅</label>
+                            <select id="route-st2" class="input-field" onchange="Views.updateRouteCostPreview()">
+                                ${optionsHtml}
+                            </select>
+                        </div>
+
+                        <div id="route-cost-preview" style="margin-top: 15px; padding: 15px; background: var(--col-bg-dark); border-radius: 8px; border: 1px solid var(--panel-border); display: none;">
+                            <!-- JSで費用を表示 -->
+                        </div>
+                    </div></div>
+                `;
+                
+                const btns = `
+                    <button class="btn btn-outline" onclick="UI.hideModal()">キャンセル</button>
+                    <button class="btn" id="btn-route-confirm" onclick="Logic.confirmBuildRoute()" disabled>確認画面へ</button>
+                `;
+                
+                UI.showModal('新規路線の建設', '', html, btns);
+            },
+
+            updateRouteCostPreview() {
+                const id1 = document.getElementById('route-st1').value;
+                const id2 = document.getElementById('route-st2').value;
+                const preview = document.getElementById('route-cost-preview');
+                const btn = document.getElementById('btn-route-confirm');
+
+                preview.style.display = 'none';
+                btn.disabled = true;
+
+                if (!id1 || !id2) return;
+
+                if (id1 === id2) {
+                    preview.innerHTML = `<div class="text-danger font-bold text-center">同じ駅は接続できません。</div>`;
+                    preview.style.display = 'block';
+                    return;
+                }
+
+                const isDuplicate = Player.data.routes.some(r => 
+                    (r.stationIds.includes(id1) && r.stationIds.includes(id2))
+                );
+
+                if (isDuplicate) {
+                    preview.innerHTML = `<div class="text-warning font-bold text-center">この区間は既に接続されています。</div>`;
+                    preview.style.display = 'block';
+                    return;
+                }
+
+                const ps1 = Player.data.stations.find(s => s.id === id1);
+                const ps2 = Player.data.stations.find(s => s.id === id2);
+                if (!ps1 || !ps2) return;
+
+                const m1 = GameData.STATION_MASTER.find(m => m.id === ps1.masterId);
+                const m2 = GameData.STATION_MASTER.find(m => m.id === ps2.masterId);
+
+                const dist = Logic.calculateDistance(m1.lat, m1.lon, m2.lat, m2.lon);
+                const cost = Logic.calculateRouteCost(dist, m1, m2);
+
+                const canAfford = Player.company.funds >= cost;
+
+                preview.innerHTML = `
+                    <div class="card-row"><span>推定距離</span><span>${dist.toFixed(1)} km</span></div>
+                    <div class="card-row" style="margin-top: 5px;"><span>建設費用</span><span class="text-danger font-bold">${Utils.formatMoney(cost)}</span></div>
+                    ${!canAfford ? `<div class="text-danger text-center" style="margin-top: 10px; font-size: 0.85rem; font-weight: bold;">資金が不足しています</div>` : ''}
+                `;
+                preview.style.display = 'block';
+                
+                if (canAfford) {
+                    btn.disabled = false;
+                }
             }
         };
 
@@ -1392,7 +1606,6 @@
                 btn.disabled = true;
 
                 try {
-                    // 1日進める処理
                     const [y, m, d] = Player.company.date.split('-').map(Number);
                     let dateObj = new Date(y, m - 1, d);
                     dateObj.setDate(dateObj.getDate() + 1);
@@ -1403,31 +1616,23 @@
                     
                     Player.company.date = `${nextY}-${nextM}-${nextD}`;
 
-                    // 将来ここに乗客計算や財務処理、AI行動処理を追加します
                     this.dailyCalculations();
-
-                    // UI更新
                     UI.updateHeader();
-                    
-                    // 自動保存
                     Game.saveGame(false);
                 } catch (e) {
                     console.error("Advance Day Error", e);
                     UI.showModal("処理エラー", "日次処理中に予期せぬエラーが発生しました。");
                 } finally {
-                    // ボタン復帰
                     setTimeout(() => {
                         this.isAdvancing = false;
                         btn.disabled = false;
-                    }, 150); // 連続クリック防止の短いディレイ
+                    }, 150); 
                 }
             },
 
             dailyCalculations() {
-                // v0.1ではスタブ（処理なし）
             },
 
-            // --- Station Acquisition Logic ---
             calculateStationCost(station) {
                 const base = GameData.STATION_COSTS.scale[station.scale] || 300000000;
                 const mult = GameData.STATION_COSTS.typeMult[station.type] || 1.0;
@@ -1444,7 +1649,6 @@
                     return;
                 }
 
-                // Check double acquire
                 if (Player.data.stations.some(ps => ps.masterId === masterId)) {
                     UI.showToast("既に取得済みの駅です。", "warning");
                     return;
@@ -1475,7 +1679,6 @@
                 const s = GameData.STATION_MASTER.find(st => st.id === masterId);
                 if (!s) return;
 
-                // 取得制限: 選択した展開地域内かどうかの検証
                 if (s.region !== Player.settings.region) {
                     UI.showToast("選択した展開地域外の駅は取得できません。", "error");
                     return;
@@ -1483,7 +1686,6 @@
 
                 const cost = this.calculateStationCost(s);
                 
-                // Double check funds & existence
                 if (Player.company.funds < cost) {
                     UI.showToast("資金が不足しています。", "error");
                     return;
@@ -1493,15 +1695,12 @@
                     return;
                 }
 
-                // ロールバック用の状態バックアップ（トランザクション処理）
                 const originalFunds = Player.company.funds;
                 const originalStations = [...Player.data.stations];
                 const originalStat = Player.stats.stations;
 
-                // Deduct funds
                 Player.company.funds -= cost;
 
-                // Create PlayerStation object
                 const ps = {
                     id: 'ps_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
                     masterId: s.id,
@@ -1512,20 +1711,17 @@
                     connectedTracks: []
                 };
 
-                // Add to array & update stat
                 Player.data.stations.push(ps);
                 Player.stats.stations = Player.data.stations.length;
 
-                // セーブ処理の実行
                 const saveSuccess = Game.saveGame(false);
 
                 if (saveSuccess) {
                     UI.hideModal();
                     UI.updateHeader();
-                    Views.updateStationsList(); // Will re-render either DB or Owned list based on current tab
+                    Views.updateStationsList(); 
                     UI.showToast(`${s.name}駅を取得しました！`, 'success');
                 } else {
-                    // セーブ失敗時はロールバック
                     Player.company.funds = originalFunds;
                     Player.data.stations = originalStations;
                     Player.stats.stations = originalStat;
@@ -1533,13 +1729,150 @@
                     UI.hideModal();
                     UI.showToast("データの保存に失敗したため、駅の取得をキャンセルしました。", "error");
                 }
+            },
+
+            // --- Route Build Logic ---
+            calculateDistance(lat1, lon1, lat2, lon2) {
+                const R = 6371; 
+                const dLat = (lat2 - lat1) * (Math.PI / 180);
+                const dLon = (lon2 - lon1) * (Math.PI / 180);
+                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                          Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+                          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                return R * c; 
+            },
+
+            calculateRouteCost(distance, master1, master2) {
+                let costPerKm = 1000000000;
+                return Math.floor(distance * costPerKm);
+            },
+
+            confirmBuildRoute() {
+                const id1 = document.getElementById('route-st1').value;
+                const id2 = document.getElementById('route-st2').value;
+                
+                if (!id1 || !id2 || id1 === id2) return;
+
+                const ps1 = Player.data.stations.find(s => s.id === id1);
+                const ps2 = Player.data.stations.find(s => s.id === id2);
+                if (!ps1 || !ps2) return;
+
+                const m1 = GameData.STATION_MASTER.find(m => m.id === ps1.masterId);
+                const m2 = GameData.STATION_MASTER.find(m => m.id === ps2.masterId);
+
+                const dist = this.calculateDistance(m1.lat, m1.lon, m2.lat, m2.lon);
+                const cost = this.calculateRouteCost(dist, m1, m2);
+
+                if (Player.company.funds < cost) {
+                    UI.showToast("資金が不足しています。", "error");
+                    return;
+                }
+
+                const afterFunds = Player.company.funds - cost;
+
+                const html = `
+                    <div class="card"><div class="card-body">
+                        <p class="text-center font-bold" style="font-size: 1.1rem; margin-bottom: 15px;">以下の内容で線路を建設しますか？</p>
+                        
+                        <div class="card-row"><span>接続元</span><span class="font-bold">${ps1.name}駅</span></div>
+                        <div class="card-row"><span>接続先</span><span class="font-bold">${ps2.name}駅</span></div>
+                        <div class="card-row"><span>推定距離</span><span>${dist.toFixed(1)} km</span></div>
+                        
+                        <hr style="margin:10px 0; border:0; border-top:1px dashed var(--panel-border);">
+                        
+                        <div class="card-row"><span>建設費用</span><span class="text-danger font-bold">-${Utils.formatMoney(cost)}</span></div>
+                        <div class="card-row"><span>現在の資金</span><span>${Utils.formatMoney(Player.company.funds)}</span></div>
+                        <div class="card-row"><span>建設後の資金</span><span class="text-success font-bold">${Utils.formatMoney(afterFunds)}</span></div>
+                    </div></div>
+                `;
+                
+                const btns = `
+                    <button class="btn btn-outline" onclick="Views.showRouteBuildModal()">戻る</button>
+                    <button class="btn" onclick="Logic.buildRoute('${id1}', '${id2}', ${dist}, ${cost})">建設を確定する</button>
+                `;
+                
+                UI.showModal('路線建設の確認', '', html, btns);
+            },
+
+            buildRoute(id1, id2, dist, cost) {
+                if (!id1 || !id2 || id1 === id2) return;
+                const ps1 = Player.data.stations.find(s => s.id === id1);
+                const ps2 = Player.data.stations.find(s => s.id === id2);
+                if (!ps1 || !ps2) return;
+
+                if (Player.company.funds < cost) {
+                    UI.showToast("資金が不足しています。", "error");
+                    return;
+                }
+                
+                const isDuplicate = Player.data.routes.some(r => r.stationIds.includes(id1) && r.stationIds.includes(id2));
+                if (isDuplicate) {
+                    UI.showToast("この区間は既に接続されています。", "error");
+                    return;
+                }
+
+                const originalFunds = Player.company.funds;
+                const originalRoutes = [...Player.data.routes];
+                const originalStat = Player.stats.routes;
+                const originalTracks1 = [...ps1.connectedTracks];
+                const originalTracks2 = [...ps2.connectedTracks];
+                const originalStatus1 = ps1.status;
+                const originalStatus2 = ps2.status;
+
+                try {
+                    Player.company.funds -= cost;
+
+                    const routeId = 'route_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+                    const newRoute = {
+                        id: routeId,
+                        name: `${ps1.name}-${ps2.name}線`,
+                        stationIds: [id1, id2],
+                        distance: dist,
+                        constructionCost: cost,
+                        constructionDate: Player.company.date,
+                        status: '建設完了'
+                    };
+
+                    Player.data.routes.push(newRoute);
+                    Player.stats.routes = Player.data.routes.length;
+
+                    ps1.connectedTracks.push(routeId);
+                    ps2.connectedTracks.push(routeId);
+                    
+                    ps1.status = '接続済み';
+                    ps2.status = '接続済み';
+
+                    const saveSuccess = Game.saveGame(false);
+                    if (!saveSuccess) throw new Error("Save Failed");
+
+                    UI.hideModal();
+                    UI.updateHeader();
+                    Views.renderRoutes();
+                    Game.drawMap(); 
+                    
+                    UI.showToast(`${ps1.name}駅と${ps2.name}駅を接続しました！`, 'success');
+
+                } catch (e) {
+                    Player.company.funds = originalFunds;
+                    Player.data.routes = originalRoutes;
+                    Player.stats.routes = originalStat;
+                    ps1.connectedTracks = originalTracks1;
+                    ps2.connectedTracks = originalTracks2;
+                    ps1.status = originalStatus1;
+                    ps2.status = originalStatus2;
+                    
+                    console.error("Build Route Error", e);
+                    UI.hideModal();
+                    UI.showToast("データの保存に失敗したため、路線の建設をキャンセルしました。", "error");
+                }
             }
         };
 
         // Initialize on Load
         window.onload = () => {
             Game.init();
-            Game.updateDifficultyDesc(); // Set initial text
+            Game.updateDifficultyDesc(); 
         };
     </script>
 </body>
