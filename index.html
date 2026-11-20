@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>RAILWAY TYCOON JAPAN v0.1.4.1</title>
+    <title>RAILWAY TYCOON JAPAN v0.1.4.2</title>
     <style>
         /* ==========================================================================
            CSS Reset & Variables (Theme Support)
@@ -228,7 +228,7 @@
             <button class="btn btn-outline" onclick="UI.showSettingsModal()">SETTINGS</button>
         </div>
         <div style="position: absolute; bottom: 20px; color: var(--col-text-muted); font-size: 0.8rem; text-align: center; line-height: 1.4;">
-            Version v0.1.4.1<br>路線建設の安定化・データ整合性修正
+            Version v0.1.4.2<br>路線建設処理の安定化・日付検証の強化
         </div>
     </div>
 
@@ -515,6 +515,13 @@
         const Utils = {
             formatMoney: (n) => {
                 return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }).format(n);
+            },
+            // YYYY-MM-DD 形式かつ実在する日付か
+            isValidDateString: (str) => {
+                if (typeof str !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(str)) return false;
+                const [y, m, d] = str.split('-').map(Number);
+                const dt = new Date(y, m - 1, d);
+                return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
             }
         };
 
@@ -522,8 +529,8 @@
         // Game Static Data
         // ==========================================
         const GameData = {
-            VERSION: "0.1.4.1",
-            VALID_VERSIONS: ["0.1", "0.1.1", "0.1.2", "0.1.3", "0.1.3.1", "0.1.3.2", "0.1.3.3", "0.1.3.4", "0.1.4", "0.1.4.1"],
+            VERSION: "0.1.4.2",
+            VALID_VERSIONS: ["0.1", "0.1.1", "0.1.2", "0.1.3", "0.1.3.1", "0.1.3.2", "0.1.3.3", "0.1.3.4", "0.1.4", "0.1.4.1", "0.1.4.2"],
             SAVE_KEY: "rtj_save_v01",
             START_DATE: "2025-04-01",
             
@@ -614,6 +621,9 @@
                 }
                 if (data.version === "0.1.4") {
                     data.version = "0.1.4.1";
+                }
+                if (data.version === "0.1.4.1") {
+                    data.version = "0.1.4.2"; // データ構造の変更なし
                 }
                 return data;
             }
@@ -813,7 +823,7 @@
                 if (!data.version || !data.metadata || !data.company || !data.settings || !data.data || !data.stats) return false;
                 if (typeof data.company.name !== 'string' || data.company.name.trim() === '') return false;
                 if (typeof data.company.funds !== 'number' || isNaN(data.company.funds)) return false;
-                if (typeof data.company.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(data.company.date)) return false;
+                if (!Utils.isValidDateString(data.company.date)) return false;
                 if (!('logo' in data.company) || !('color' in data.company) || !('hq' in data.company)) return false;
                 if (!('region' in data.settings) || !('difficulty' in data.settings) || !('hasCompetitor' in data.settings)) return false;
                 const validRegions = GameData.REGIONS.map(r => r.id);
@@ -1039,7 +1049,13 @@
                             
                             if (typeof r.distance !== 'number' || r.distance <= 0 || !isFinite(r.distance)) throw new Error(`Invalid route distance`);
                             if (typeof r.constructionCost !== 'number' || r.constructionCost < 0 || !isFinite(r.constructionCost)) throw new Error(`Invalid route cost`);
-                            if (typeof r.constructionDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(r.constructionDate)) throw new Error(`Invalid route date`);
+                            // 建設日は実在する日付で、かつゲーム内日付より未来でないこと。
+                            // 不正な場合は路線を消さず、ゲーム内の現在日付で修復する。
+                            if (!Utils.isValidDateString(r.constructionDate) || r.constructionDate > Player.company.date) {
+                                console.warn(`路線 ${r.id} の建設日が不正のため修復しました:`, r.constructionDate, "->", Player.company.date);
+                                r.constructionDate = Player.company.date;
+                                hasInvalidRoute = true;
+                            }
                             if (!validRouteStatuses.includes(r.status)) throw new Error(`Invalid route status: ${r.status}`);
                             
                             if (seenRouteIds.has(r.id)) throw new Error(`Duplicate route id: ${r.id}`);
@@ -1573,62 +1589,38 @@
             },
 
             updateRouteCostPreview() {
-                const id1 = document.getElementById('route-st1').value;
-                const id2 = document.getElementById('route-st2').value;
+                const sel1 = document.getElementById('route-st1');
+                const sel2 = document.getElementById('route-st2');
                 const preview = document.getElementById('route-cost-preview');
                 const btn = document.getElementById('btn-route-confirm');
+                if (!sel1 || !sel2 || !preview || !btn) return;
 
                 preview.style.display = 'none';
                 btn.disabled = true;
 
-                if (!id1 || !id2) return;
+                const ev = Logic.evaluateRoute(sel1.value, sel2.value);
+                if (ev.code === 'unselected') return;
 
-                if (id1 === id2) {
-                    preview.innerHTML = `<div class="text-danger font-bold text-center">同じ駅は接続できません。</div>`;
-                    preview.style.display = 'block';
-                    return;
-                }
-
-                const isDuplicate = Player.data.routes.some(r => 
-                    (r.stationIds[0] === id1 && r.stationIds[1] === id2) || (r.stationIds[0] === id2 && r.stationIds[1] === id1)
-                );
-
-                if (isDuplicate) {
-                    preview.innerHTML = `<div class="text-warning font-bold text-center">この区間は既に接続されています。</div>`;
-                    preview.style.display = 'block';
-                    return;
-                }
-
-                const ps1 = Player.data.stations.find(s => s.id === id1);
-                const ps2 = Player.data.stations.find(s => s.id === id2);
-                if (!ps1 || !ps2) return;
-
-                const m1 = GameData.STATION_MASTER.find(m => m.id === ps1.masterId);
-                const m2 = GameData.STATION_MASTER.find(m => m.id === ps2.masterId);
-
-                const dist = Logic.calculateDistance(m1.lat, m1.lon, m2.lat, m2.lon);
-                
-                if (dist <= 0 || !isFinite(dist)) {
-                    preview.innerHTML = `<div class="text-danger font-bold text-center">距離の計算に失敗しました。</div>`;
-                    preview.style.display = 'block';
-                    return;
-                }
-                
-                const cost = Logic.calculateRouteCost(dist, m1, m2);
-
-                if (Player.company.funds < cost) {
+                if (ev.code === 'funds') {
                     preview.innerHTML = `
                         <div class="text-danger font-bold text-center">資金が不足しています。</div>
-                        <div class="text-center text-muted" style="font-size: 0.85rem; margin-top: 5px;">推定費用: ${Utils.formatMoney(cost)}</div>
+                        <div class="text-center text-muted" style="font-size: 0.85rem; margin-top: 5px;">推定費用: ${Utils.formatMoney(ev.cost)}</div>
                     `;
+                    preview.style.display = 'block';
+                    return;
+                }
+
+                if (!ev.ok) {
+                    const cls = ev.code === 'duplicate' ? 'text-warning' : 'text-danger';
+                    preview.innerHTML = `<div class="${cls} font-bold text-center">${ev.error}</div>`;
                     preview.style.display = 'block';
                     return;
                 }
 
                 preview.innerHTML = `
                     <div class="text-center">
-                        <div style="font-size: 0.9rem; color: var(--col-text-muted);">推定距離: <span class="font-bold text-main" style="color: var(--col-text-main);">${dist.toFixed(1)} km</span></div>
-                        <div style="font-size: 0.9rem; color: var(--col-text-muted);">推定費用: <span class="font-bold text-danger">${Utils.formatMoney(cost)}</span></div>
+                        <div style="font-size: 0.9rem; color: var(--col-text-muted);">推定距離: <span class="font-bold text-main" style="color: var(--col-text-main);">${ev.dist.toFixed(1)} km</span></div>
+                        <div style="font-size: 0.9rem; color: var(--col-text-muted);">推定費用: <span class="font-bold text-danger">${Utils.formatMoney(ev.cost)}</span></div>
                     </div>
                 `;
                 preview.style.display = 'block';
@@ -1775,7 +1767,11 @@
                 }
             },
 
+            // 駅間距離 (km, ハーサイン公式)。入力が不正な場合は NaN を返す。
             calculateDistance(lat1, lon1, lat2, lon2) {
+                const vals = [lat1, lon1, lat2, lon2];
+                if (!vals.every(v => typeof v === 'number' && isFinite(v))) return NaN;
+                if (Math.abs(lat1) > 90 || Math.abs(lat2) > 90 || Math.abs(lon1) > 180 || Math.abs(lon2) > 180) return NaN;
                 const R = 6371; // km
                 const dLat = (lat2 - lat1) * Math.PI / 180;
                 const dLon = (lon2 - lon1) * Math.PI / 180;
@@ -1784,10 +1780,12 @@
                           Math.sin(dLon/2) * Math.sin(dLon/2);
                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
                 const dist = R * c;
-                return dist > 0 ? dist : 0;
+                return (isFinite(dist) && dist > 0) ? dist : NaN;
             },
 
+            // 建設費 (係数・計算式は v0.1.4.1 から変更なし)。入力が不正な場合は NaN を返す。
             calculateRouteCost(dist, m1, m2) {
+                if (typeof dist !== 'number' || !isFinite(dist) || dist <= 0 || !m1 || !m2) return NaN;
                 const basePerKm = 500000000;
                 const getScaleMult = (scale) => {
                     if (scale === '大規模') return 1.5;
@@ -1795,35 +1793,75 @@
                     return 1.0;
                 };
                 const mult = (getScaleMult(m1.scale) + getScaleMult(m2.scale)) / 2;
-                return Math.floor(dist * basePerKm * mult);
+                const cost = Math.floor(dist * basePerKm * mult);
+                return (isFinite(cost) && cost >= 0) ? cost : NaN;
             },
 
-            confirmBuildRoute() {
-                const id1 = document.getElementById('route-st1').value;
-                const id2 = document.getElementById('route-st2').value;
-                
-                if (!id1 || !id2 || id1 === id2) return;
+            // プレビュー・確認画面・建設確定で共通使用する検証＋計算。
+            // 戻り値: { ok, code, error, ps1, ps2, m1, m2, dist, cost }
+            evaluateRoute(id1, id2) {
+                const fail = (code, error, extra = {}) => Object.assign({ ok: false, code, error }, extra);
+
+                if (!Player || !Player.data || !Player.company || !Player.settings) {
+                    return fail('noPlayer', 'プレイヤーデータが存在しません。');
+                }
+                if (!id1 || !id2) return fail('unselected', '駅を2つ選択してください。');
+                if (id1 === id2) return fail('same', '同じ駅は接続できません。');
+
+                const isDuplicate = Player.data.routes.some(r =>
+                    Array.isArray(r.stationIds) &&
+                    ((r.stationIds[0] === id1 && r.stationIds[1] === id2) || (r.stationIds[0] === id2 && r.stationIds[1] === id1))
+                );
+                if (isDuplicate) return fail('duplicate', 'この区間は既に接続されています。');
 
                 const ps1 = Player.data.stations.find(s => s.id === id1);
                 const ps2 = Player.data.stations.find(s => s.id === id2);
-                if (!ps1 || !ps2) return;
+                if (!ps1 || !ps2) return fail('notOwned', '指定された自社所有駅が見つかりません。');
 
                 const m1 = GameData.STATION_MASTER.find(m => m.id === ps1.masterId);
                 const m2 = GameData.STATION_MASTER.find(m => m.id === ps2.masterId);
-                
+                if (!m1 || !m2) return fail('master', '駅マスターデータが正常に参照できません。');
+
+                if (m1.region !== Player.settings.region || m2.region !== Player.settings.region) {
+                    return fail('region', '展開地域外の駅は接続できません。');
+                }
+
                 const dist = this.calculateDistance(m1.lat, m1.lon, m2.lat, m2.lon);
-                if (dist <= 0 || !isFinite(dist)) {
-                    UI.showToast("距離の計算に失敗しました。", "error");
-                    return;
-                }
-                
+                if (!isFinite(dist) || dist <= 0) return fail('distance', '距離の計算に失敗しました。');
+
                 const cost = this.calculateRouteCost(dist, m1, m2);
+                if (!isFinite(cost) || cost < 0) return fail('cost', '建設費用の計算に失敗しました。');
 
-                if (Player.company.funds < cost) {
-                    UI.showToast("資金が不足しています。", "error");
+                const base = { ps1, ps2, m1, m2, dist, cost };
+                if (typeof Player.company.funds !== 'number' || !isFinite(Player.company.funds)) {
+                    return fail('noPlayer', '所持金データが不正です。', base);
+                }
+                if (Player.company.funds < cost) return fail('funds', '資金が不足しています。', base);
+
+                return Object.assign({ ok: true, code: 'ok', error: null }, base);
+            },
+
+            // id1/id2 を省略した場合は、建設画面の選択値を読み取る。
+            // (確定時の再確認など、選択画面が既に閉じている場合は id を明示して呼ぶこと)
+            confirmBuildRoute(id1, id2) {
+                if (id1 === undefined || id2 === undefined) {
+                    const sel1 = document.getElementById('route-st1');
+                    const sel2 = document.getElementById('route-st2');
+                    if (!sel1 || !sel2) {
+                        UI.showToast("駅の選択情報を取得できませんでした。", "error");
+                        return;
+                    }
+                    id1 = sel1.value;
+                    id2 = sel2.value;
+                }
+
+                const ev = this.evaluateRoute(id1, id2);
+                if (!ev.ok) {
+                    UI.showToast(ev.error, ev.code === 'unselected' ? 'warning' : 'error');
                     return;
                 }
 
+                const { ps1, ps2, dist, cost } = ev;
                 const afterFunds = Player.company.funds - cost;
 
                 const html = `
@@ -1844,7 +1882,7 @@
                 
                 const btns = `
                     <button class="btn btn-outline" onclick="Views.showRouteBuildModal()">戻る</button>
-                    <button id="btn-route-execute" class="btn" onclick="Logic.buildRoute('${id1}', '${id2}', ${dist}, ${cost}, this)">建設を確定する</button>
+                    <button id="btn-route-execute" class="btn" onclick="Logic.buildRoute('${ps1.id}', '${ps2.id}', ${dist}, ${cost}, this)">建設を確定する</button>
                 `;
                 
                 UI.showModal('路線建設の確認', '', html, btns);
@@ -1853,60 +1891,34 @@
             isBuildingRoute: false,
             buildRoute(id1, id2, dist, cost, btnElem = null) {
                 if (this.isBuildingRoute) return;
-                
-                if (!id1 || !id2 || id1 === id2) return;
-                const ps1 = Player.data.stations.find(s => s.id === id1);
-                const ps2 = Player.data.stations.find(s => s.id === id2);
-                if (!ps1 || !ps2) {
-                    UI.showToast("指定された自社所有駅が見つかりません。", "error");
+                if (btnElem) btnElem.disabled = true; // 検証中の連打も防止
+
+                const ev = this.evaluateRoute(id1, id2);
+                if (!ev.ok) {
+                    if (btnElem) btnElem.disabled = false;
+                    UI.showToast(ev.error, 'error');
                     return;
                 }
 
-                const m1 = GameData.STATION_MASTER.find(m => m.id === ps1.masterId);
-                const m2 = GameData.STATION_MASTER.find(m => m.id === ps2.masterId);
-                if (!m1 || !m2) {
-                    UI.showToast("駅マスターデータが正常に参照できません。", "error");
-                    return;
-                }
-                
-                if (m1.region !== Player.settings.region || m2.region !== Player.settings.region) {
-                    UI.showToast("展開地域外の駅は接続できません。", "error");
-                    return;
-                }
-                
-                const realDist = this.calculateDistance(m1.lat, m1.lon, m2.lat, m2.lon);
-                if (realDist <= 0 || !isFinite(realDist)) {
-                    UI.showToast("距離の計算に失敗しました。", "error");
-                    return;
-                }
-                
-                const realCost = this.calculateRouteCost(realDist, m1, m2);
-                if (realCost < 0 || !isFinite(realCost)) {
-                    UI.showToast("建設費用の計算に失敗しました。", "error");
-                    return;
-                }
-                
-                if (Math.abs(realCost - cost) > 1 || Math.abs(realDist - dist) > 0.1) {
-                    UI.showToast("計算結果が更新されました。再度確認画面をご確認ください。", "warning");
-                    this.confirmBuildRoute();
+                const { ps1, ps2 } = ev;
+                const realDist = ev.dist;
+                const realCost = ev.cost;
+
+                if (!Utils.isValidDateString(Player.company.date)) {
+                    if (btnElem) btnElem.disabled = false;
+                    UI.showToast("ゲーム内日付が不正なため建設できません。", "error");
                     return;
                 }
 
-                if (Player.company.funds < realCost) {
-                    UI.showToast("資金が不足しています。", "error");
-                    return;
-                }
-                
-                const isDuplicate = Player.data.routes.some(r => 
-                    (r.stationIds[0] === id1 && r.stationIds[1] === id2) || (r.stationIds[0] === id2 && r.stationIds[1] === id1)
-                );
-                if (isDuplicate) {
-                    UI.showToast("この区間は既に接続されています。", "error");
+                // 確認画面の表示内容と一致しているか
+                if (typeof cost !== 'number' || typeof dist !== 'number' ||
+                    Math.abs(realCost - cost) > 1 || Math.abs(realDist - dist) > 0.1) {
+                    UI.showToast("計算結果が更新されました。最新の内容をご確認ください。", "warning");
+                    this.confirmBuildRoute(id1, id2);
                     return;
                 }
 
                 this.isBuildingRoute = true;
-                if (btnElem) btnElem.disabled = true;
 
                 const originalFunds = Player.company.funds;
                 const originalRoutes = [...Player.data.routes];
@@ -1960,6 +1972,7 @@
                     
                     console.error("Build Route Error", e);
                     UI.hideModal();
+                    UI.updateHeader();
                     UI.showToast("データの保存に失敗したため、路線の建設をキャンセルしました。", "error");
                 } finally {
                     this.isBuildingRoute = false;
